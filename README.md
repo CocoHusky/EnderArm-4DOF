@@ -90,9 +90,9 @@ The conversion is intended to keep the purchased hardware minimal. The reference
 - the donor X/Y stepper motors with their existing 20-tooth GT2 pulleys retained
 - standard 686ZZ bearings (6 mm bore × 13 mm OD × 5 mm wide) where used by the linkage
 - 6 mm precision steel balls used inside the printed bearing-shell assembly
-- a printed bearing spacer that adapts a standard 686ZZ for the original M5 Ender fastener while providing flange-like retention
-- a printed motor spacer that lets the donor stepper and its already-installed 20T pulley fit the arm drive geometry
-- printed bearing-shell top and bottom parts that use loose 6 mm steel balls instead of requiring a purchased bearing assembly
+- `686ZZ M5 Bearing Spacer.stl` adapts a standard 686ZZ for the original M5 Ender fastener while providing flange-like retention
+- `Ender XY 20T Pulley Motor Spacer.stl` lets the donor X/Y steppers retain their already-installed 20T pulleys
+- `6mm Ball Thrust Bearing Shell Top.stl` and `6mm Ball Thrust Bearing Shell Bottom.stl` use loose 6 mm steel balls instead of a purchased thrust bearing
 
 The 6 mm loose balls and the 686ZZ bearings serve different functions: the loose balls run in the printed bearing shell, while the 686ZZ is used with the printed M5 bearing spacer. Exact quantities and part-by-part locations are maintained in the hardware documentation.
 

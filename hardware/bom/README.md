@@ -28,7 +28,7 @@ The donor printer replaces the separate Arduino Mega, RAMPS board, A4988 drivers
 | Item | Qty | Specification | Use |
 | --- | ---: | --- | --- |
 | 624ZZ bearing | 6 | 4 mm bore × 13 mm OD × 5 mm wide | Use with [`624ZZ Flange Shim.stl`](../adapters/624ZZ%20Flange%20Shim.stl) |
-| 686ZZ bearing | 12 | 6 mm bore × 13 mm OD × 5 mm wide | Use with [`Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) |
+| 686ZZ bearing | 12 | 6 mm bore × 13 mm OD × 5 mm wide | Use with [`686ZZ M5 Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) |
 | Precision steel balls | enough to fill bearing shell | 6 mm diameter | Printed loose-ball bearing replacing the purchased thrust bearing |
 | GT2 closed-loop timing belt | 3 | 200 mm circumference × 6 mm wide | Three rotary belt drives |
 | GT2 20T pulley | 1 | 20 tooth, 5 mm bore, for 6 mm GT2 belt | Buy or print: [GT2 20T pulley STL](https://www.printables.com/model/730635-gt2-20t-pully-5mm-bore-optimized-for-fdm) |
@@ -50,10 +50,10 @@ These parts are printed rather than purchased:
 | Part | Qty | Purpose |
 | --- | ---: | --- |
 | [`624ZZ Flange Shim.stl`](../adapters/624ZZ%20Flange%20Shim.stl) | 6 | Adds the required flange interface to standard 624ZZ bearings |
-| [`Bearing Shell Top.stl`](../adapters/Bearing%20Shell%20Top.stl) | 1 | Upper half of the loose-ball bearing shell |
-| [`Bearing Shell Bottom.stl`](../adapters/Bearing%20Shell%20Bottom.stl) | 1 | Lower half of the loose-ball bearing shell |
-| [`Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) | 12 | Used with the 686ZZ bearings for the M5 pivot interface |
-| [`Motor Spacer.stl`](../adapters/Motor%20Spacer.stl) | 2 | Used with the donor X/Y motors and existing 20T pulleys |
+| [`6mm Ball Thrust Bearing Shell Top.stl`](../adapters/Bearing%20Shell%20Top.stl) | 1 | Upper half of the loose-ball bearing shell |
+| [`6mm Ball Thrust Bearing Shell Bottom.stl`](../adapters/Bearing%20Shell%20Bottom.stl) | 1 | Lower half of the loose-ball bearing shell |
+| [`686ZZ M5 Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) | 12 | Used with the 686ZZ bearings for the M5 pivot interface |
+| [`Ender XY 20T Pulley Motor Spacer.stl`](../adapters/Motor%20Spacer.stl) | 2 | Used with the donor X/Y motors and existing 20T pulleys |
 
 ### 624ZZ flange-shim conversion
 

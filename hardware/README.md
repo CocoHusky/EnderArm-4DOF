@@ -18,10 +18,10 @@ Five small printed parts make it possible to reuse inexpensive parts and more of
 | Part | Purpose |
 | --- | --- |
 | `624ZZ Flange Shim.stl` | Adds the required flange interface to a standard 624ZZ bearing |
-| `bearing-shell-top.stl` | Upper race/shell for the printed loose-ball bearing |
-| `bearing-shell-bottom.stl` | Lower race/shell for the printed loose-ball bearing |
-| `bearing-spacer.stl` | Adapts a standard 686ZZ bearing to the original M5 Ender fastener and provides flange-like retention |
-| `motor-spacer.stl` | Provides the required spacing to use the donor stepper motor with its existing 20-tooth GT2 pulley still installed |
+| `6mm Ball Thrust Bearing Shell Top.stl` | Upper race/shell for the printed loose-ball bearing |
+| `6mm Ball Thrust Bearing Shell Bottom.stl` | Lower race/shell for the printed loose-ball bearing |
+| `686ZZ M5 Bearing Spacer.stl` | Adapts a standard 686ZZ bearing to the original M5 Ender fastener and provides flange-like retention |
+| `Ender XY 20T Pulley Motor Spacer.stl` | Provides the required spacing to use the donor stepper motor with its existing 20-tooth GT2 pulley still installed |
 
 ### 624ZZ flange shim
 

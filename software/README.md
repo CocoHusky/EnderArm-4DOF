@@ -22,9 +22,9 @@ original Ender controller board
 
 ## Host
 
-The host can be a Dell Wyse thin client, Raspberry Pi, Linux PC, or another computer running the required services.
+The host can be a Raspberry Pi, other Linux single-board computer, mini PC, desktop, or laptop running Debian/Linux and the required services.
 
-The Dell Wyse is the reference system used for the completed build.
+Minimum recommended resources are **2 GB RAM and 2 GB available storage**.
 
 ## Responsibilities
 

@@ -21,6 +21,10 @@ The photos below show the current working reference assembly and the major subsy
 
 A detailed bearing and linkage close-up is available in [the mechanical assembly photos](docs/images/mechanical-assembly/linkage-bearing-detail.jpg).
 
+## Current use: pouring beer
+
+The current working robot is being used as a practical motion-control demo to **pour beers**. That use case exercises the same capabilities the project was built to study: repeatable homing, coordinated 4-axis motion, Cartesian targeting, smooth trajectories, and safe workspace limits.
+
 ## Why this project exists
 
 A 3D printer is already a complete motion-control platform: stepper motors, drivers, power electronics, limit switches, belts, pulleys, a rigid frame, and a host-to-controller communication path. This project repurposes those parts into an articulated mechanism so the same hardware can be used to study:
@@ -74,6 +78,8 @@ Original Ender controller board
 ```
 
 The host can be any Raspberry Pi, single-board computer, mini PC, desktop, or laptop capable of running Debian/Linux, Klipper, Moonraker, and the control application.
+
+The reference build also needed a **fourth endstop input** for the retained linear axis. On the reference 8-bit Creality board, an unused **bed-temperature / B-MOT thermistor input** was repurposed as a digital endstop input rather than adding another controller. The switch is read by Klipper as a pulled-up digital input; details are documented in the hardware/software setup.
 
 **Minimum host requirement:** approximately **2 GB RAM and 2 GB available storage**. A dedicated host is not required if an existing Linux computer can be used.
 

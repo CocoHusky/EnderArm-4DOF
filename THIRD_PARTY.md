@@ -4,7 +4,7 @@ EnderArm combines original Ender-specific conversion work with a printable paral
 
 ## Mechanical arm source
 
-The source mechanical design and its redistribution license must be verified before unchanged upstream STL or CAD files are committed here.
+The reference mechanical design and BOM used for this conversion are from [ToolKnox/Robotic-Arm-Arduino-project](https://github.com/ToolKnox/Robotic-Arm-Arduino-project), with the corresponding mechanical project hosted on Printables. Redistribution terms for unchanged upstream STL or CAD files must be verified before those files are committed here.
 
 The project documentation should record:
 
@@ -24,3 +24,8 @@ Klipper and Moonraker remain separate upstream projects and are not redistribute
 ## Attribution rule
 
 Do not remove author names, license notices, or attribution from third-party source files. Modified files should identify the upstream source and the nature of the EnderArm modification.
+
+
+## BOM source
+
+The EnderArm BOM is adapted from the ToolKnox BOM revision dated 2026-04-30. The adapted BOM preserves the upstream quantities as a baseline and documents which items are reused from the Ender donor, replaced by Ender-specific printed parts, retained, or removed.

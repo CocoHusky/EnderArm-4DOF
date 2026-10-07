@@ -6,7 +6,7 @@ The documentation is organized in the same order a new builder should follow.
 
 - `build/` — donor printer, disassembly, printed parts, and mechanical assembly
 - `electronics/` — controller board, motors, endstops, power, and wiring
-- `host/` — Dell Wyse reference host, Raspberry Pi, and computer-hosted setup
+- `host/` — Raspberry Pi or other Debian/Linux host setup; minimum 2 GB RAM and 2 GB available storage
 - `kinematics/` — linkage geometry, coordinate frames, forward and inverse kinematics
 - `calibration/` — homing, zero offsets, workspace measurement, and validation
 - `troubleshooting/` — mechanical, wiring, Klipper, and motion-control problems

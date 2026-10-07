@@ -165,7 +165,7 @@ C = (120 sin(qX), 120 cos(qX))
 
 Both side drives use a 20T motor pulley and 90T output pulley, giving a 4.5:1 reduction.
 
-Detailed linkage geometry, forward kinematics, inverse kinematics, calibration, and workspace limiting are documented under `docs/kinematics/`.
+Detailed linkage geometry, forward kinematics, inverse kinematics, Cartesian-to-joint conversion, and motor-ratio math are documented in [`docs/kinematics/README.md`](docs/kinematics/README.md).
 
 ## Photos and build documentation
 

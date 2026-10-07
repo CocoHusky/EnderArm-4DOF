@@ -36,7 +36,7 @@ GROUND_G_Z = 17.27991769527724
 
 # Clear reference pose used only for the drawing.
 QX_DEG = 22.0
-QY_DEG = -59.0
+QY_DEG = -90.0
 
 
 def add(a, b):
@@ -94,6 +94,39 @@ def solve_linkage(qx_deg=QX_DEG, qy_deg=QY_DEG):
     }
 
 
+def validate_geometry(points):
+    """Fail generation if any fixed dimension or F-C-H straightness is wrong."""
+
+    def distance(a, b):
+        dy = b[0] - a[0]
+        dz = b[1] - a[1]
+        return sqrt(dy * dy + dz * dz)
+
+    expected = (
+        ("AB", "A", "B", AB),
+        ("AC", "A", "C", AC),
+        ("BF", "B", "F", BF),
+        ("CF", "C", "F", CF),
+        ("CH", "C", "H", CH),
+        ("AG", "A", "G", AG_CE),
+        ("CE", "C", "E", AG_CE),
+        ("CD", "C", "D", CD_HI),
+        ("HI", "H", "I", CD_HI),
+        ("DE", "D", "E", DE),
+        ("GE", "G", "E", GE_DI),
+        ("DI", "D", "I", GE_DI),
+        ("HT", "H", "T", HT),
+    )
+    for name, a, b, target in expected:
+        actual = distance(points[a], points[b])
+        assert abs(actual - target) < 1e-7, (name, actual, target)
+
+    fc = sub(points["C"], points["F"])
+    ch = sub(points["H"], points["C"])
+    cross = fc[0] * ch[1] - fc[1] * ch[0]
+    assert abs(cross) < 1e-7, ("F-C-H not collinear", cross)
+
+
 def render_svg(points, output_path):
     width, height = 1500, 900
     x0, y0, plot_w, plot_h = 80, 110, 930, 700
@@ -118,9 +151,9 @@ def render_svg(points, output_path):
         ("A", "C", "driven"),
         ("A", "B", "driven"),
         ("B", "F", "passive"),
-        ("F", "C", "passive"),
+        ("F", "C", "driven"),
         ("C", "H", "driven"),
-        ("A", "G", "plate"),
+        ("A", "G", "passive"),
         ("G", "E", "plate"),
         ("E", "C", "plate"),
         ("E", "D", "plate"),
@@ -142,7 +175,7 @@ def render_svg(points, output_path):
         '.point{fill:white;stroke:#111;stroke-width:2.5}.box{fill:white;stroke:#222;stroke-width:1.5}',
         '</style>',
         '<text x="65" y="48" class="title">EnderArm 4-DOF Kinematics — Exact Closed-Linkage Geometry</text>',
-        '<text x="65" y="80" class="sub">qX = +22°, qY = −59° reference pose · dimensions in mm</text>',
+        '<text x="65" y="80" class="sub">Exact geometry · illustrative pose qX=+22°, qY=−90° · qX/qY are variable output angles</text>',
     ]
 
     # grid
@@ -157,8 +190,8 @@ def render_svg(points, output_path):
         svg.append(line(a, b, css))
 
     offsets = {
-        "A": (-18, 30), "B": (-34, 8), "C": (10, -10), "D": (10, -10),
-        "E": (-34, -10), "F": (-32, -8), "G": (-34, 18), "H": (9, 30),
+        "A": (-18, 30), "B": (-34, -10), "C": (10, 28), "D": (10, -10),
+        "E": (-2, -15), "F": (-22, -14), "G": (-34, 25), "H": (-8, 30),
         "I": (10, -10), "T": (10, 6),
     }
 
@@ -183,6 +216,12 @@ def render_svg(points, output_path):
         ("F", "C", "CF = 40"),
         ("C", "H", "CH = 120"),
         ("H", "T", "HT = 27"),
+        ("A", "G", "AG = 32"),
+        ("C", "D", "CD = 25"),
+        ("E", "D", "DE = 45"),
+        ("G", "E", "GE = 120"),
+        ("D", "I", "DI = 120"),
+        ("H", "I", "HI = 25"),
     ]
     for p1, p2, label in dimensions:
         a, b = points[p1], points[p2]
@@ -217,6 +256,7 @@ def render_svg(points, output_path):
 
 if __name__ == "__main__":
     points = solve_linkage()
+    validate_geometry(points)
     output = (
         Path(__file__).resolve().parent.parent
         / "images"

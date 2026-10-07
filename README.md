@@ -2,7 +2,24 @@
 
 Convert a low-cost used Creality Ender 3 or Ender 3 Pro into a programmable 4-DOF robotic arm for learning robotics, kinematics, motion control, and non-Cartesian mechanisms.
 
+
+<p align="center">
+  <img src="docs/images/overview/assembled-arm-on-ender-base.jpg" alt="EnderArm 4-DOF reference build mounted on the retained Ender 3 base" width="760">
+</p>
+
 The project reuses the donor printer's frame components, stepper motors, power supply, wiring, endstops, controller board, and original linear Y-axis. The reference build was developed and tested from an Ender 3. An Ender 3 Pro can be used as well; board revisions and mounting details should always be verified before flashing firmware or assembling printed parts.
+
+## Reference build
+
+The photos below show the current working reference assembly and the major subsystems reused from the donor printer.
+
+| Arm and linkage | Complete reference system |
+| --- | --- |
+| ![Standalone closed-linkage arm](docs/images/overview/arm-linkage-assembly.jpg) | ![Complete EnderArm reference build](docs/images/overview/full-system-reference-build.jpg) |
+| **Base rotation and endstops** | **Controller and host wiring** |
+| ![Base rotation and endstop hardware](docs/images/mechanical-assembly/base-rotation-endstops.jpg) | ![Original Ender controller and host wiring](docs/images/wiring/controller-host-wiring.jpg) |
+
+A detailed bearing and linkage close-up is available in [the mechanical assembly photos](docs/images/mechanical-assembly/linkage-bearing-detail.jpg).
 
 ## Why this project exists
 

@@ -73,14 +73,9 @@ Original Ender controller board
 4 stepper motors + endstops
 ```
 
-The host can be:
+The host can be any Raspberry Pi, single-board computer, mini PC, desktop, or laptop capable of running Debian/Linux, Klipper, Moonraker, and the control application.
 
-- Dell Wyse thin client running Debian or another Linux distribution
-- Raspberry Pi
-- Linux desktop or laptop
-- another computer capable of running Klipper, Moonraker, and the control application
-
-The Dell Wyse is the reference external-host build, but it is not required.
+**Minimum host requirement:** approximately **2 GB RAM and 2 GB available storage**. A dedicated host is not required if an existing Linux computer can be used.
 
 ## Additional hardware
 

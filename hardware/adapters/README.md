@@ -1,5 +1,9 @@
 # Ender-specific adapters
 
+## 624ZZ flange shim
+
+`624ZZ Flange Shim.stl` allows a standard 624ZZ bearing to be used where the source design calls for an F624ZZ flanged bearing. Use one shim with each 624ZZ bearing.
+
 These parts modify the source arm hardware so the conversion can reuse original Ender components and inexpensive commodity parts.
 
 ## Bearing shell

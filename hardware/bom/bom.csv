@@ -8,7 +8,7 @@ Ender donor,Original wiring,reuse,,Motor and endstop wiring
 Ender donor,Original Y-axis rail carriage belt and extrusion,1 set,,Linear base axis
 Ender donor,Original M5 screws washers T-nuts and frame hardware,reuse,,Mechanical assembly and converted pivots
 Ender donor,Original X/Y 20T GT2 pulleys,2,20 tooth,Main-arm and crank drives
-Buy,F624ZZ flanged bearing,6,4x13x5 mm,Linkage pivots
+Buy,624ZZ bearing,6,4x13x5 mm,Use with hardware/adapters/624ZZ Flange Shim.stl
 Buy,686ZZ bearing,12,6x13x5 mm,Use with hardware/adapters/Bearing Spacer.stl
 Buy,6 mm precision steel balls,enough to fill bearing shell,6 mm diameter,Printed loose-ball bearing
 Buy,GT2 closed-loop timing belt,3,200 mm circumference x 6 mm wide,Rotary belt drives
@@ -21,6 +21,7 @@ Buy,M4 x 20 mm button-head screw,6,M4,Arm assembly
 Buy,M2 nut,6,M2,Arm assembly
 Buy,M3 nut,4,M3,Arm assembly
 Buy,M4 lock nut,14,M4,Arm assembly
+Print,624ZZ Flange Shim.stl,6,,Adds flange interface to standard 624ZZ bearings
 Print,bearing-shell-top.stl,1,,Loose-ball bearing shell
 Print,bearing-shell-bottom.stl,1,,Loose-ball bearing shell
 Print,bearing-spacer.stl,12,,686ZZ to M5 adapter with flange-like retention

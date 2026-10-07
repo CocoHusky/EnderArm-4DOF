@@ -75,6 +75,66 @@ The upstream design uses flanged F686ZZ bearings and M6 pivot hardware. EnderArm
 
 The Ender X/Y motors already have 20T GT2 pulleys installed. The motor spacers position those motors correctly in the arm so the pulleys can stay on the shafts.
 
+## Estimated build cost
+
+The cost below is a **budget estimate as of October 2026**. It uses representative U.S. online prices and the project's $30 used-Ender donor target. Shipping and sales tax are not included.
+
+| Purchase | What it covers | Estimated cost |
+| --- | --- | ---: |
+| Used Ender 3 / Ender 3 Pro donor | Controller, PSU, 4 steppers, endstops, wiring, linear axis, frame hardware, two existing 20T pulleys | **$30.00** |
+| 624ZZ bearings | 10-pack; 6 required | $10.99 |
+| 686ZZ bearings | 20-pack; 12 required | $15.49 |
+| 6 mm precision steel balls | 100-pack; enough for the printed bearing shell | $9.99 |
+| 200 mm × 6 mm GT2 closed belts | 3 required | $1.50 |
+| M2/M3/M4/M5 button-head fastener assortment | Covers the required M2/M3/M4 screws and standard nuts | $19.99 |
+| M4 nylon lock nuts | 50-pack; 14 required | $8.99 |
+| PETG filament allowance | One 1 kg spool for printed arm/conversion parts; actual consumption depends on slicer settings | $17.99 |
+| GT2 20T pulley | Printed using the filament allowance | $0.00 |
+
+### Reference total
+
+```text
+Additional materials:     $84.94
+Used Ender donor:         $30.00
+--------------------------------
+Estimated robot total:   $114.94
+```
+
+**Budget target: about $115 for the complete robot hardware** when the donor Ender is obtained for about $30 and the additional 20T pulley is printed.
+
+If the third 20T pulley is purchased instead of printed, a representative 5-pack is about $6.99, bringing the estimate to about **$121.93**.
+
+### Host computer
+
+The motion host is separate from the mechanical robot BOM because an existing Linux computer, Raspberry Pi, or laptop can be used.
+
+- Existing compatible computer: **$0 additional**
+- Used Dell Wyse 5010 reference host: about **$29.95**
+- Reference build including a purchased Wyse host: about **$144.89**
+
+The donor printer is the largest variable. Current used Ender listings can be substantially higher than $30, so a more general estimate is:
+
+```text
+Robot total = donor Ender price + approximately $84.94
+```
+
+Add about $29.95 only if a dedicated Wyse host is also needed.
+
+### Price references
+
+Representative prices used for this estimate:
+
+- 624ZZ 10-pack: $10.99
+- 686ZZ 20-pack: $15.49
+- 6 mm steel balls, 100-pack: $9.99
+- 200 mm GT2 belt: $0.50 each
+- M2-M5 button-head fastener assortment: $19.99
+- M4 nylon lock nuts, 50-pack: $8.99
+- 1 kg PETG filament allowance: $17.99
+- Dell Wyse 5010: about $29.95
+
+Prices change over time; the quantities and specifications in the BOM are the authoritative build requirements.
+
 ## Upstream reference
 
 - [ToolKnox/Robotic-Arm-Arduino-project](https://github.com/ToolKnox/Robotic-Arm-Arduino-project)

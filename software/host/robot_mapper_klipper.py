@@ -106,7 +106,7 @@ except BlockingIOError as exc:
     raise RuntimeError("Another Robot Joint-Space Mapper instance is already running") from exc
 
 # Klipper/Moonraker owns the MCU serial link.  This process only talks to
-# Moonraker locally on the Linux host, so browser-network latency never enters motion timing.
+# Moonraker locally on the Wyse, so browser Wi-Fi latency never enters motion timing.
 lock = threading.Lock()
 stop_event = threading.Event()
 _axes_registered = False
@@ -797,7 +797,8 @@ def smooth_dance_waypoints(home_z, cycles=10, arm_steps=1, base_steps=2):
         neutral,
         (29.8, 5.1),
         (96.0, 29.7),
-        (135.2, 96.5),        neutral,
+        (135.2, 96.5),
+        neutral,
     ]
     sweep=[0.0,30.0,60.0,90.0,120.0,150.0,180.0,150.0,120.0,90.0,60.0,30.0,0.0]
     points=[]
@@ -1596,7 +1597,8 @@ async function goCartesianTarget(y,z){
 }
 
 async function goJointTarget(x,y,z,feedOverride=null){
-  x=Number(x);y=Number(y);z=Number(z);  if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)) throw Error('Invalid Arm X / Arm Y / Base Z target');
+  x=Number(x);y=Number(y);z=Number(z);
+  if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)) throw Error('Invalid Arm X / Arm Y / Base Z target');
   const feed=feedOverride===null
     ?Math.max(60,Math.min(5000,parseFloat($('moveFeed').value)||2500))
     :Math.max(60,Math.min(5000,Number(feedOverride)||2500));

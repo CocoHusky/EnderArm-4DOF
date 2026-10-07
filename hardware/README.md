@@ -11,7 +11,21 @@ This directory contains the mechanical files, Ender-specific conversion parts, a
 
 Third-party printable files should retain their original attribution and license. Ender-specific parts are kept separately so it is clear which pieces belong to this conversion.
 
+## Base arm design and assembly reference
+
+The main arm geometry comes from the ToolKnox robotic-arm design. Use the upstream mechanical model and assembly sequence for the core printed arm parts:
+
+- [ToolKnox robotic-arm project](https://github.com/ToolKnox/Robotic-Arm-Arduino-project)
+- [Mechanical assembly guide](https://github.com/ToolKnox/Robotic-Arm-Arduino-project/blob/main/docs/assembly-guide.md)
+- [Original printable model](https://www.printables.com/model/1439965-robotic-arm-arduino-project)
+
+Follow those instructions for the **main structural arm assembly**. Then apply the Ender-specific substitutions documented below: retained Ender linear base, Ender motors/controller, printed bearing replacements, M5 bearing adapters, and motor spacers.
+
+Do **not** follow the upstream Arduino/RAMPS electronics setup for this conversion; EnderArm reuses the Ender controller and Klipper.
+
 ## Print settings used for the conversion parts
+
+The settings below apply to the **Ender-specific conversion parts in this repository**. For the main structural arm parts, follow the upstream ToolKnox print and assembly guidance unless intentionally changing the source design.
 
 The Ender-specific adapter parts were dimensioned and fit-adjusted around the following print setup:
 

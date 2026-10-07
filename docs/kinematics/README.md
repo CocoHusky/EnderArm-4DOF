@@ -6,7 +6,7 @@ All lengths are in millimetres. Public joint angles are in degrees unless otherw
 
 ## Joint map
 
-The drawing below is generated from the same dimensions used by the kinematic model. The reference pose is only for visualization; the dimensions and joint definitions are the important part.
+The drawing below is generated from the same dimensions used by the kinematic model. Its illustrative pose uses `qX=+22°` and `qY=-90°` only to make the mechanism easy to read: **A→B and A→G are visibly separate**, and **F→C→H is shown as the single straight rigid member defined by the solver**. Those display angles are not home or calibration-zero values.
 
 ![Exact EnderArm closed-linkage kinematics](../images/kinematics/enderarm-kinematics-exact.svg)
 
@@ -17,7 +17,7 @@ The four powered robot coordinates are:
 - `qX` — main-arm joint; the 90T output that directly drives A→C
 - `qY` — crank joint; the 90T output that directly drives A→B
 
-The diagram is reproducible from [`generate_kinematics_diagram.py`](generate_kinematics_diagram.py).
+The diagram is reproducible from [`generate_kinematics_diagram.py`](generate_kinematics_diagram.py). The generator validates the fixed member lengths and F-C-H collinearity before writing the SVG.
 
 ## 1. Actuated coordinates
 

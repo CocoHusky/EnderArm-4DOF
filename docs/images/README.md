@@ -94,11 +94,11 @@ Show every non-printed purchased component at a scale that makes identification 
 | --- | --- |
 | `hardware/gt2-belt.jpg` | GT2 belt with width and length reference |
 | `hardware/20t-pulley.jpg` | 20T GT2 motor pulley |
-| `hardware/608zz-bearing.jpg` | 608ZZ bearing with ruler/caliper or marked dimensions |
+| `hardware/686zz-bearing.jpg` | 686ZZ bearing with ruler/caliper or marked dimensions |
 | `hardware/6mm-steel-balls.jpg` | 6 mm precision steel balls with scale reference |
 | `hardware/additional-hardware-layout.jpg` | Complete purchased hardware set for one arm |
 
-Keep the 608ZZ bearing and 6 mm steel balls as separate documented parts.
+Keep the 686ZZ bearing and 6 mm steel balls as separate documented parts. The 6 mm balls belong in the printed bearing-shell assembly; the 686ZZ uses the printed M5 bearing spacer.
 
 ## mechanical-assembly
 

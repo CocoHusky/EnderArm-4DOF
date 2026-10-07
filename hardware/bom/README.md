@@ -28,10 +28,10 @@ The donor printer replaces the separate Arduino Mega, RAMPS board, A4988 drivers
 | Item | Qty | Specification | Use |
 | --- | ---: | --- | --- |
 | F624ZZ flanged bearing | 6 | 4 mm bore × 13 mm OD × 5 mm wide | Linkage pivots |
-| 686ZZ bearing | 12 | 6 mm bore × 13 mm OD × 5 mm wide | Used with the printed bearing spacers |
+| 686ZZ bearing | 12 | 6 mm bore × 13 mm OD × 5 mm wide | Use with [`Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) |
 | Precision steel balls | enough to fill bearing shell | 6 mm diameter | Printed loose-ball bearing replacing the purchased thrust bearing |
 | GT2 closed-loop timing belt | 3 | 200 mm circumference × 6 mm wide | Three rotary belt drives |
-| GT2 20T pulley | 1 | 20 tooth, for 6 mm GT2 belt | Additional rotary drive; can also be 3D printed |
+| GT2 20T pulley | 1 | 20 tooth, 5 mm bore, for 6 mm GT2 belt | Buy or print: [GT2 20T pulley STL](https://www.printables.com/model/730635-gt2-20t-pully-5mm-bore-optimized-for-fdm) |
 | M2 × 10 mm button-head screw | 6 | M2 | Arm assembly |
 | M3 × 6 mm button-head screw | 36 | M3 | Arm assembly |
 | M4 × 10 mm button-head screw | 6 | M4 | Arm assembly |
@@ -49,10 +49,10 @@ These parts are printed rather than purchased:
 
 | Part | Qty | Purpose |
 | --- | ---: | --- |
-| `bearing-shell-top.stl` | 1 | Upper half of the loose-ball bearing shell |
-| `bearing-shell-bottom.stl` | 1 | Lower half of the loose-ball bearing shell |
-| `bearing-spacer.stl` | 12 | Adapts a standard 686ZZ to the original M5 hardware and provides flange-like retention |
-| `motor-spacer.stl` | 2 | Allows the donor X/Y motors to retain their existing 20T pulleys |
+| [`Bearing Shell Top.stl`](../adapters/Bearing%20Shell%20Top.stl) | 1 | Upper half of the loose-ball bearing shell |
+| [`Bearing Shell Bottom.stl`](../adapters/Bearing%20Shell%20Bottom.stl) | 1 | Lower half of the loose-ball bearing shell |
+| [`Bearing Spacer.stl`](../adapters/Bearing%20Spacer.stl) | 12 | Used with the 686ZZ bearings for the M5 pivot interface |
+| [`Motor Spacer.stl`](../adapters/Motor%20Spacer.stl) | 2 | Used with the donor X/Y motors and existing 20T pulleys |
 
 ### Bearing-shell conversion
 

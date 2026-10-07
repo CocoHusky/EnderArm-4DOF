@@ -1,28 +1,28 @@
-source,item,quantity,specification,use
-Ender donor,Ender 3 or Ender 3 Pro,1,,Donor machine
-Ender donor,Original controller board,1,,Klipper MCU and stepper-driver board
-Ender donor,Original power supply,1,,Robot power
-Ender donor,Original stepper motors,4,,Four powered robot axes
-Ender donor,Original endstops,reuse,,Homing and limit sensing
-Ender donor,Original wiring,reuse,,Motor and endstop wiring
-Ender donor,Original Y-axis rail carriage belt and extrusion,1 set,,Linear base axis
-Ender donor,Original M5 screws washers T-nuts and frame hardware,reuse,,Mechanical assembly and converted pivots
-Ender donor,Original X/Y 20T GT2 pulleys,2,20 tooth,Main-arm and crank drives
-Buy,624ZZ bearing,6,4x13x5 mm,Use with hardware/adapters/624ZZ Flange Shim.stl
-Buy,686ZZ bearing,12,6x13x5 mm,Use with hardware/adapters/686ZZ M5 Bearing Spacer.stl
-Buy,6 mm precision steel balls,enough to fill bearing shell,6 mm diameter,Printed loose-ball bearing
-Buy,GT2 closed-loop timing belt,3,200 mm circumference x 6 mm wide,Rotary belt drives
-Buy,GT2 20T pulley,1,20 tooth 5 mm bore for 6 mm GT2 belt,Buy or print https://www.printables.com/model/730635-gt2-20t-pully-5mm-bore-optimized-for-fdm
-Buy,M2 x 10 mm button-head screw,6,M2,Arm assembly
-Buy,M3 x 6 mm button-head screw,36,M3,Arm assembly
-Buy,M4 x 10 mm button-head screw,6,M4,Arm assembly
-Buy,M4 x 16 mm button-head screw,8,M4,Arm assembly
-Buy,M4 x 20 mm button-head screw,6,M4,Arm assembly
-Buy,M2 nut,6,M2,Arm assembly
-Buy,M3 nut,4,M3,Arm assembly
-Buy,M4 lock nut,14,M4,Arm assembly
-Print,624ZZ Flange Shim.stl,6,,Adds flange interface to standard 624ZZ bearings
-Print,6mm Ball Thrust Bearing Shell Top.stl,1,,Loose-ball bearing shell
-Print,6mm Ball Thrust Bearing Shell Bottom.stl,1,,Loose-ball bearing shell
-Print,686ZZ M5 Bearing Spacer.stl,12,,686ZZ to M5 adapter with flange-like retention
-Print,Ender XY 20T Pulley Motor Spacer.stl,2,,Retains donor X/Y 20T pulleys
+source,item,quantity,specification,use,estimated_purchase_cost_usd
+Ender donor,Ender 3 or Ender 3 Pro,1,,Donor machine,30.00
+Ender donor,Original controller board,1,,Klipper MCU and stepper-driver board,
+Ender donor,Original power supply,1,,Robot power,
+Ender donor,Original stepper motors,4,,Four powered robot axes,
+Ender donor,Original endstops,reuse,,Homing and limit sensing,
+Ender donor,Original wiring,reuse,,Motor and endstop wiring,
+Ender donor,Original Y-axis rail carriage belt and extrusion,1 set,,Linear base axis,
+Ender donor,Original M5 screws washers T-nuts and frame hardware,reuse,,Mechanical assembly and converted pivots,
+Ender donor,Original X/Y 20T GT2 pulleys,2,20 tooth,Main-arm and crank drives,
+Buy,624ZZ bearing,6,4x13x5 mm,Use with hardware/adapters/624ZZ Flange Shim.stl,10.99
+Buy,686ZZ bearing,12,6x13x5 mm,Use with hardware/adapters/686ZZ M5 Bearing Spacer.stl,15.49
+Buy,6 mm precision steel balls,enough to fill bearing shell,6 mm diameter,Printed loose-ball bearing,9.99
+Buy,GT2 closed-loop timing belt,3,200 mm circumference x 6 mm wide,Rotary belt drives,1.50
+Buy,GT2 20T pulley,1,20 tooth 5 mm bore for 6 mm GT2 belt,Buy or print https://www.printables.com/model/730635-gt2-20t-pully-5mm-bore-optimized-for-fdm,0.00
+Buy,M2 x 10 mm button-head screw,6,M2,Arm assembly,
+Buy,M3 x 6 mm button-head screw,36,M3,Arm assembly,
+Buy,M4 x 10 mm button-head screw,6,M4,Arm assembly,
+Buy,M4 x 16 mm button-head screw,8,M4,Arm assembly,
+Buy,M4 x 20 mm button-head screw,6,M4,Arm assembly,
+Buy,M2 nut,6,M2,Arm assembly,
+Buy,M3 nut,4,M3,Arm assembly,
+Buy,M4 lock nut,14,M4,Arm assembly,
+Print,624ZZ Flange Shim.stl,6,,Adds flange interface to standard 624ZZ bearings,
+Print,6mm Ball Thrust Bearing Shell Top.stl,1,,Loose-ball bearing shell,
+Print,6mm Ball Thrust Bearing Shell Bottom.stl,1,,Loose-ball bearing shell,
+Print,686ZZ M5 Bearing Spacer.stl,12,,686ZZ to M5 adapter with flange-like retention,
+Print,Ender XY 20T Pulley Motor Spacer.stl,2,,Retains donor X/Y 20T pulleys,

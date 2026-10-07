@@ -13,14 +13,19 @@ Third-party printable files must retain their original attribution and license. 
 
 ## Ender-specific conversion parts
 
-Four small printed parts make it possible to reuse inexpensive parts and more of the original Ender hardware:
+Five small printed parts make it possible to reuse inexpensive parts and more of the original Ender hardware:
 
 | Part | Purpose |
 | --- | --- |
+| `624ZZ Flange Shim.stl` | Adds the required flange interface to a standard 624ZZ bearing |
 | `bearing-shell-top.stl` | Upper race/shell for the printed loose-ball bearing |
 | `bearing-shell-bottom.stl` | Lower race/shell for the printed loose-ball bearing |
 | `bearing-spacer.stl` | Adapts a standard 686ZZ bearing to the original M5 Ender fastener and provides flange-like retention |
 | `motor-spacer.stl` | Provides the required spacing to use the donor stepper motor with its existing 20-tooth GT2 pulley still installed |
+
+### 624ZZ flange shim
+
+The printed flange shim allows a standard 624ZZ bearing to be used in place of an F624ZZ flanged bearing.
 
 ### Printed loose-ball bearing
 

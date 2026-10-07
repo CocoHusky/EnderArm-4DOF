@@ -4,6 +4,21 @@ This document defines the mathematical model used by EnderArm. It intentionally 
 
 All lengths are in millimetres. Public joint angles are in degrees unless otherwise noted.
 
+## Joint map
+
+The drawing below is generated from the same dimensions used by the kinematic model. The reference pose is only for visualization; the dimensions and joint definitions are the important part.
+
+![Exact EnderArm closed-linkage kinematics](../images/kinematics/enderarm-kinematics-exact.svg)
+
+The four powered robot coordinates are:
+
+- `s` — linear base travel; translates the complete arm on the retained Ender rail
+- `ψ` — base yaw; rotates the complete Y-Z side linkage about vertical Z
+- `qX` — main-arm joint; the 90T output that directly drives A→C
+- `qY` — crank joint; the 90T output that directly drives A→B
+
+The diagram is reproducible from [`generate_kinematics_diagram.py`](generate_kinematics_diagram.py).
+
 ## 1. Actuated coordinates
 
 EnderArm has four powered coordinates:

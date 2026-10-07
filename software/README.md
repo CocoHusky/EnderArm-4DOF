@@ -1,65 +1,164 @@
 # Software
 
-The reference software stack separates high-level robot geometry from deterministic motor timing.
+EnderArm splits high-level robot geometry from deterministic step timing.
 
 ```text
-Web interface
+Browser UI
     |
-Python robot controller
+    v
+robot_mapper_klipper.py
     |
-kinematics + workspace safety
+    +--> kinematics.py
     |
+    v
 Moonraker
     |
-Klipper host
+    v
+Klipper
     |
-USB
+   USB
     |
+    v
 original Ender controller board
-    |
-4 stepper axes
 ```
 
-## Host
+## Host requirements
 
-The host can be a Raspberry Pi, other Linux single-board computer, mini PC, desktop, or laptop running Debian/Linux and the required services.
+A Dell Wyse is **not required**. Use a Raspberry Pi, mini PC, old laptop, thin client, or other Debian/Linux machine.
 
-Minimum recommended resources are **2 GB RAM and 2 GB available storage**.
+Minimum practical target:
 
-## Responsibilities
+- **2 GB RAM**
+- **2 GB available storage**
+- Python 3
+- USB connection to the Ender controller
+- network access if the UI is opened from another device
 
-### Python control application
+The reference build used a used Dell Wyse only because it was cheaper than Raspberry Pi hardware at the time.
 
-- live robot state
-- joint controls
-- Cartesian target controls
-- forward and inverse kinematics
-- workspace boundary checking
-- click-to-move
-- coordinated demonstrations and trajectories
-- user interface
+## Source files
 
-### Klipper
+| File | Purpose |
+| --- | --- |
+| [`host/kinematics.py`](host/kinematics.py) | Exact closed-linkage geometry, forward kinematics, inverse kinematics, coordinate transforms, motor/output conversion |
+| [`host/robot_mapper_klipper.py`](host/robot_mapper_klipper.py) | Browser UI, workspace model, boundary checking, Moonraker communication, joint/tool commands |
+| [`klipper/arm_robot.py`](klipper/arm_robot.py) | Klipper extra module for native robot-arm homing and coordinated A/B/C arm axes |
+| [`tests/test_kinematics.py`](tests/test_kinematics.py) | Geometry and kinematics regression tests |
 
-- homing
-- endstop handling
-- coordinated step generation
-- acceleration and velocity control
-- low-latency motion execution
-- USB communication with the original controller board
+## Install Debian/Linux packages
 
-### Ender controller board
+```bash
+sudo apt update
+sudo apt install -y git python3
+```
 
-The original printer controller is retained as the real-time MCU and stepper-driver board. Board revisions vary between Ender 3 and Ender 3 Pro machines, so the Klipper MCU configuration must match the physical board in the donor printer.
+Install Klipper and Moonraker using their normal Linux installation process.
 
-## Source layout
+## Clone EnderArm
 
-- `host/` — Python control application and kinematics
-- `klipper/` — Klipper extra modules and configuration
-- `tests/` — kinematic and safety tests
+```bash
+cd ~
+git clone https://github.com/CocoHusky/EnderArm-4DOF.git
+cd EnderArm-4DOF
+```
 
-The public release should only identify software as the reference 4-DOF controller after all four physical axes are present and validated in the checked-in source.
+## Install the Klipper arm module
 
+For a normal Klipper checkout at `~/klipper`:
+
+```bash
+cp software/klipper/arm_robot.py ~/klipper/klippy/extras/arm_robot.py
+```
+
+Add this section to `printer.cfg`:
+
+```ini
+[arm_robot]
+```
+
+The current module expects these exact Klipper object names:
+
+```ini
+[manual_stepper joint_x]
+# qX: main A -> C drive
+
+[manual_stepper joint_y]
+# qY: A -> B crank drive
+
+[manual_stepper joint_z]
+# base-yaw drive
+```
+
+Use the **actual step/dir/enable/endstop pins for the donor controller board**. Ender 3 and Ender 3 Pro boards exist in multiple revisions, so pin assignments from another board should not be copied blindly.
+
+The retained Ender rail is the fourth powered coordinate. Calibrate that rail in millimetres using the real donor belt, pulley, motor, and travel.
+
+## Start the web controller
+
+```bash
+python3 software/host/robot_mapper_klipper.py
+```
+
+The checked-in controller uses:
+
+```text
+Moonraker: http://127.0.0.1:7125
+Web UI:    0.0.0.0:8765
+```
+
+Open it from another machine at:
+
+```text
+http://<linux-host-ip>:8765
+```
+
+There is no required fixed IP address.
+
+## Inverse-kinematics path
+
+For an arm-local Cartesian command:
+
+```text
+desired tool Y,Z
+        |
+        v
+inverse_side()
+        |
+        v
+qX, qY 90T output angles
+        |
+        v
+home-offset / direction calibration
+        |
+        v
+Klipper coordinated motion
+```
+
+`inverse_side()` uses the exact closed-linkage geometry, not a serial two-link shoulder/elbow approximation. It uses a finite-difference Jacobian with a 0.01° step, converges below 0.01 mm tool error, allows up to 80 iterations, and rejects near-singular solves when `|det(J)| < 1e-8`.
+
+See [the full kinematics derivation](../docs/kinematics/README.md).
+
+## Run the regression tests
+
+```bash
+cd software/host
+python3 -m unittest -v ../tests/test_kinematics.py
+```
+
+The development source currently passes the geometry/kinematics regression suite before publication.
+
+## First-power checks
+
+Before normal operation:
+
+1. confirm Klipper reaches `ready`
+2. verify every endstop changes state correctly
+3. verify motor directions at low speed
+4. home one mechanism at a time
+5. confirm the linkage remains on the physical Assembly-1 branch
+6. verify the measured X/Y joint-space boundary
+7. calibrate physical home offsets and linear-rail travel
+8. check cable clearance over the full workspace
 
 ## Fourth endstop: repurposing a thermistor input
 
@@ -85,3 +184,4 @@ This was verified on the reference controller by watching the switch state chang
 Do not configure the same PA6 pin simultaneously as a temperature sensor and an endstop. The temperature-sensor definition for that connector must be removed/disabled when the input is repurposed.
 
 Different Ender controller revisions use different MCU pins, so the pin value above is specific to the reference 8-bit board.
+

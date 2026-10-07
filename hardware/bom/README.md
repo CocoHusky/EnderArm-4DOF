@@ -106,19 +106,15 @@ If the third 20T pulley is purchased instead of printed, a representative 5-pack
 
 ### Host computer
 
-The motion host is separate from the mechanical robot BOM because an existing Linux computer, Raspberry Pi, or laptop can be used.
+The host is separate from the mechanical robot BOM. Use a Raspberry Pi or any other Debian/Linux computer with approximately **2 GB RAM and 2 GB available storage**.
 
-- Existing compatible computer: **$0 additional**
-- Used Dell Wyse 5010 reference host: about **$29.95**
-- Reference build including a purchased Wyse host: about **$144.89**
+If a compatible computer is already available, host cost is **$0 additional**.
 
-The donor printer is the largest variable. Current used Ender listings can be substantially higher than $30, so a more general estimate is:
+The donor printer is the largest variable, so a more general estimate is:
 
 ```text
 Robot total = donor Ender price + approximately $84.94
 ```
-
-Add about $29.95 only if a dedicated Wyse host is also needed.
 
 ### Price references
 
@@ -131,7 +127,6 @@ Representative prices used for this estimate:
 - M2-M5 button-head fastener assortment: $19.99
 - M4 nylon lock nuts, 50-pack: $8.99
 - 1 kg PETG filament allowance: $17.99
-- Dell Wyse 5010: about $29.95
 
 Prices change over time; the quantities and specifications in the BOM are the authoritative build requirements.
 

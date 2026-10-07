@@ -127,6 +127,24 @@ Before connecting powered motion:
 
 Do not proceed to high-speed motion until every axis moves freely by hand.
 
+## Fourth endstop using the temperature-sensor input
+
+The 4-DOF conversion needs one more limit-switch input than the original motion layout provides.
+
+On the **reference 8-bit Creality V1.1.4-style controller**, the unused **bed thermistor / B-MOT temperature-sensor input** was repurposed as the fourth endstop input.
+
+Reference wiring:
+
+```text
+B-MOT / PA6  ---- switch ---- GND
+```
+
+Klipper enables the MCU pull-up, so the normally-open switch pulls the input to ground when triggered. On the reference board this was verified in Klipper: the input changed from `open` to `TRIGGERED` when the switch was held.
+
+Important: this means that connector is no longer being used as an analog temperature input. It is intentionally reconfigured as a digital switch input for the robot.
+
+The exact MCU pin depends on the donor-controller revision. The **PA6 mapping is for the reference 8-bit board** and should not be copied to a different Creality board revision without checking its schematic/pin map.
+
 ## Ender-specific conversion parts
 
 | Part | Qty | Purpose |

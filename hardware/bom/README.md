@@ -1,144 +1,73 @@
 # Bill of Materials
 
-This BOM starts from the mechanical BOM for the upstream ToolKnox robotic-arm design and applies the substitutions used by the EnderArm conversion.
+EnderArm is designed to reuse as much of an Ender 3 or Ender 3 Pro as possible. The BOM is split into two parts:
 
-Upstream reference:
+1. hardware taken from the donor Ender
+2. additional hardware required to complete the robotic arm
 
-- Project: [ToolKnox/Robotic-Arm-Arduino-project](https://github.com/ToolKnox/Robotic-Arm-Arduino-project)
-- Upstream BOM revision: 2026-04-30
-- Upstream BOM: [BOM.pdf](https://github.com/ToolKnox/Robotic-Arm-Arduino-project/blob/main/BOM.pdf)
-- Upstream mechanical model: [Robotic Arm - Arduino project](https://www.printables.com/model/1439965-robotic-arm-arduino-project)
+The mechanical arm is based on the ToolKnox robotic-arm design, but the EnderArm conversion replaces most of the original electronics, motors, power hardware, and several bearing/fastener parts with components already present on the Ender.
 
-The upstream BOM contains 28 purchased items. EnderArm removes most of the original control electronics by reusing the Ender 3/Ender 3 Pro controller, power supply, motors, wiring, endstops, and linear motion hardware.
+## From the Ender 3 / Ender 3 Pro
 
-## EnderArm donor
-
-| Item | Qty | Source | Notes |
-| --- | ---: | --- | --- |
-| Ender 3 or Ender 3 Pro | 1 | Donor | Reference build was made from an Ender 3 |
-| Original Ender controller board | 1 | Donor | Runs Klipper; replaces Arduino Mega + RAMPS + external A4988s |
-| Original Ender power supply | 1 | Donor | Replaces the upstream 12 V / 4 A supply |
-| Original Ender stepper motors | 4 | Donor | Reassigned to the four robot DOFs |
-| Original Ender endstops and wiring | reuse | Donor | Reused where possible for homing |
-| Original Ender linear carriage/extrusions | 1 set | Donor | Retained for the linear DOF |
-| Original Ender M5 hardware and T-nuts | reuse | Donor | Used at the converted pivot/bearing interfaces where applicable |
-| Original 20T GT2 pulleys on the X/Y motors | 2 | Donor | Retained on the shafts; the motor spacers avoid removing them |
-
-## Upstream BOM conversion
-
-### Mechatronics
-
-| Upstream item | Upstream qty | EnderArm requirement | Action |
-| --- | ---: | --- | --- |
-| NEMA17 stepper motor | 3 | 4 donor Ender steppers | **Reuse donor** |
-| Arduino Mega 2560 | 1 | Original Ender controller | **Remove** |
-| 12 V 4 A power supply | 1 | Original Ender PSU | **Remove** |
-| RAMPS 1.4 | 1 | Original Ender controller | **Remove** |
-| Female 2.1 mm DC jack | 1 | Not required | **Remove** |
-| A4988 stepper driver | 3 | Drivers on Ender controller | **Remove** |
-| 28BYJ-48 gripper motor | 1 | Current EnderArm build has no powered gripper | **Remove** |
-| ULN2003 gripper driver | 1 | Not required | **Remove** |
-| End stop | 3 | Reuse donor Ender switches | **Reuse donor** |
-| 12 V 5010 fan | 1 | Not required for reference build | **Remove** |
-| 2GT pulley, 20 tooth | 3 | 2 donor pulleys + 1 additional/printed pulley | **Reuse 2 / add 1** |
-| F624ZZ flanged bearing | 6 | F624ZZ | **Keep x6** |
-| F686ZZ flanged bearing | 12 | Standard 686ZZ + printed bearing spacers | **Replace** |
-| 51105 thrust bearing | 1 | Printed bearing shell + 6 mm steel balls | **Replace** |
-| 2GT closed belt, 200 mm × 6 mm | 3 | Same | **Keep x3** |
-| Paper clip, min. 35 mm | 2 | Gripper linkage not used | **Remove** |
-
-### Fasteners
-
-The M2/M3/M4 fasteners are retained from the upstream arm BOM. Matching donor hardware can be reused when available, but these quantities are the safe build quantities for the printed arm.
-
-| Upstream item | Qty | EnderArm requirement |
+| Item | Qty | Use in EnderArm |
 | --- | ---: | --- |
-| M2 × 10 mm button-head screw | 6 | Keep |
-| M3 × 6 mm button-head screw | 36 | Keep |
-| M4 × 10 mm button-head screw | 6 | Keep |
-| M4 × 16 mm button-head screw | 8 | Keep |
-| M4 × 20 mm button-head screw | 6 | Keep |
-| M6 × 20 mm button-head screw | 1 | **Replaced by donor M5 pivot hardware** |
-| M6 × 40 mm button-head screw | 2 | **Replaced by donor M5 pivot hardware** |
-| M6 × 50 mm button-head screw | 1 | **Replaced by donor M5 pivot hardware** |
-| M2 nut | 6 | Keep |
-| M3 nut | 4 | Keep |
-| M4 lock nut | 14 | Keep |
-| M6 lock nut | 4 | **Replaced by M5-compatible donor hardware** |
+| Ender 3 or Ender 3 Pro | 1 | Donor machine |
+| Original controller board | 1 | Klipper MCU and stepper-driver board |
+| Original power supply | 1 | Powers the robot |
+| Original stepper motors | 4 | Four powered robot axes |
+| Original endstops | reuse | Homing / limit sensing |
+| Original motor and endstop wiring | reuse | Robot wiring |
+| Original Y-axis rail, carriage, belt, and extrusion | 1 set | Linear base axis |
+| Original M5 screws, washers, T-nuts, and frame hardware | reuse | Mechanical assembly and converted pivots |
+| Original 20T GT2 pulleys from X/Y motors | 2 | Main-arm and crank belt drives |
 
-The four upstream M6 pivot fasteners are not required in the EnderArm conversion. The printed bearing spacer provides an approximately 5 mm fastener interface through a standard 686ZZ bearing so M5 Ender hardware can be used instead.
+The donor printer replaces the separate Arduino Mega, RAMPS board, A4988 drivers, external NEMA17 motors, and separate power supply used by the upstream design.
 
-## EnderArm additional hardware
+## Additional hardware to buy
 
-These are the non-donor mechanical parts required after applying the substitutions above.
-
-| Item | Qty | Specification | Notes |
+| Item | Qty | Specification | Use |
 | --- | ---: | --- | --- |
-| F624ZZ flanged bearing | 6 | 4 mm bore, 13 mm OD, 5 mm wide | Same as upstream |
-| 686ZZ bearing | 12 | 6 mm bore, 13 mm OD, 5 mm wide | Standard non-flanged bearing; used with printed bearing spacers |
-| 6 mm precision steel balls | 15 | 6 mm diameter | Installed in the printed thrust-bearing shell in place of the 51105 bearing |
-| GT2 closed-loop timing belt | 3 | 200 mm circumference, 6 mm wide | Three belt-driven rotary joints |
-| GT2 20T pulley | 1 | 20 tooth, 6 mm belt | Two donor X/Y pulleys are reused; this third pulley may also be 3D printed |
-| M2 × 10 mm button-head screw | 6 | M2 | Same as upstream |
-| M3 × 6 mm button-head screw | 36 | M3 | Same as upstream |
-| M4 × 10 mm button-head screw | 6 | M4 | Same as upstream |
-| M4 × 16 mm button-head screw | 8 | M4 | Same as upstream |
-| M4 × 20 mm button-head screw | 6 | M4 | Same as upstream |
-| M2 nut | 6 | M2 | Same as upstream |
-| M3 nut | 4 | M3 | Same as upstream |
-| M4 lock nut | 14 | M4 | Same as upstream |
+| F624ZZ flanged bearing | 6 | 4 mm bore × 13 mm OD × 5 mm wide | Linkage pivots |
+| 686ZZ bearing | 12 | 6 mm bore × 13 mm OD × 5 mm wide | Used with the printed bearing spacers |
+| Precision steel balls | enough to fill bearing shell | 6 mm diameter | Printed loose-ball bearing replacing the purchased thrust bearing |
+| GT2 closed-loop timing belt | 3 | 200 mm circumference × 6 mm wide | Three rotary belt drives |
+| GT2 20T pulley | 1 | 20 tooth, for 6 mm GT2 belt | Additional rotary drive; can also be 3D printed |
+| M2 × 10 mm button-head screw | 6 | M2 | Arm assembly |
+| M3 × 6 mm button-head screw | 36 | M3 | Arm assembly |
+| M4 × 10 mm button-head screw | 6 | M4 | Arm assembly |
+| M4 × 16 mm button-head screw | 8 | M4 | Arm assembly |
+| M4 × 20 mm button-head screw | 6 | M4 | Arm assembly |
+| M2 nut | 6 | M2 | Arm assembly |
+| M3 nut | 4 | M3 | Arm assembly |
+| M4 lock nut | 14 | M4 | Arm assembly |
 
-If suitable M2/M3/M4 fasteners are available from the donor printer or an existing hardware assortment, they do not need to be purchased again.
+If matching M2/M3/M4 hardware is already available, those fasteners do not need to be purchased again.
 
-## EnderArm printed conversion parts
+## Printed conversion parts
 
-These parts are specific to the Ender conversion and are in `hardware/adapters/`.
+These parts are printed rather than purchased:
 
-| Printed part | Qty | Replaces / enables |
+| Part | Qty | Purpose |
 | --- | ---: | --- |
-| `bearing-shell-top.stl` | 1 | Upper race for the printed loose-ball thrust bearing |
-| `bearing-shell-bottom.stl` | 1 | Lower race for the printed loose-ball thrust bearing |
-| `bearing-spacer.stl` | 12 | Makes a standard 686ZZ usable with an M5 fastener and provides flange-like retention |
-| `motor-spacer.stl` | 2 | Allows the donor X/Y motors to retain their factory-installed 20T pulleys |
+| `bearing-shell-top.stl` | 1 | Upper half of the loose-ball bearing shell |
+| `bearing-shell-bottom.stl` | 1 | Lower half of the loose-ball bearing shell |
+| `bearing-spacer.stl` | 12 | Adapts a standard 686ZZ to the original M5 hardware and provides flange-like retention |
+| `motor-spacer.stl` | 2 | Allows the donor X/Y motors to retain their existing 20T pulleys |
 
-### Printed thrust bearing
+### Bearing-shell conversion
 
-The upstream design calls for one 51105 thrust bearing. EnderArm replaces it with the two printed bearing-shell halves and 15 loose 6 mm steel balls.
+The printed bearing shell uses loose 6 mm steel balls in place of the more expensive purchased thrust-bearing assembly.
 
-The shell has the same approximately 42 mm outside envelope as the original thrust-bearing location. The balls run directly in the printed race.
+### 686ZZ conversion
 
-### 686ZZ bearing conversion
+The upstream design uses flanged F686ZZ bearings and M6 pivot hardware. EnderArm instead uses standard 686ZZ bearings with a printed spacer. The spacer creates an M5-compatible center interface and flange-like retention so the original Ender hardware can be reused.
 
-The upstream design calls for twelve F686ZZ flanged bearings. EnderArm uses twelve less-specialized 686ZZ bearings instead.
+### Motor-spacer conversion
 
-Each 686ZZ receives a printed bearing spacer. The spacer:
+The Ender X/Y motors already have 20T GT2 pulleys installed. The motor spacers position those motors correctly in the arm so the pulleys can stay on the shafts.
 
-- fits the 686ZZ geometry
-- provides an approximately 5 mm center interface for the donor M5 hardware
-- supplies flange-like axial retention
-- removes the need for the upstream M6 pivot hardware
+## Upstream reference
 
-### Motor spacer
-
-The Ender X/Y stepper motors already have 20T GT2 pulleys installed. Two motor spacers position those motors correctly in the arm so the pulleys can remain on the shafts.
-
-## Parts removed from the upstream purchase list
-
-The following upstream items are not required for the EnderArm reference build:
-
-- Arduino Mega 2560
-- RAMPS 1.4
-- three A4988 modules
-- separate 12 V / 4 A power supply
-- 2.1 mm DC jack
-- three separate NEMA17 motors
-- 28BYJ-48 gripper motor
-- ULN2003 board
-- 12 V 5010 fan
-- 51105 thrust bearing
-- twelve F686ZZ flanged bearings
-- four M6 pivot screws
-- four M6 lock nuts
-- gripper paper-clip links
-
-The Ender donor replaces the controller, drivers, PSU, motors, much of the wiring, the linear axis, and several pieces of hardware.
+- [ToolKnox/Robotic-Arm-Arduino-project](https://github.com/ToolKnox/Robotic-Arm-Arduino-project)
+- [Upstream BOM](https://github.com/ToolKnox/Robotic-Arm-Arduino-project/blob/main/BOM.pdf)
+- [Mechanical model on Printables](https://www.printables.com/model/1439965-robotic-arm-arduino-project)

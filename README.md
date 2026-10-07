@@ -86,13 +86,15 @@ The Dell Wyse is the reference external-host build, but it is not required.
 
 The conversion is intended to keep the purchased hardware minimal. The reference build uses:
 
-- GT2 timing belt, 6 mm wide
-- GT2 20-tooth motor pulleys
-- 608ZZ deep-groove ball bearings where specified by the printed arm
-- 6 mm precision steel balls where specified by the mechanism
-- printed adapters/spacers that allow the bearing interfaces to use the donor printer's original M5 hardware instead of requiring M6 fasteners
+- GT2 timing belt, 200 mm long and 6 mm wide for the side-joint drives
+- the donor X/Y stepper motors with their existing 20-tooth GT2 pulleys retained
+- standard 686ZZ bearings (6 mm bore × 13 mm OD × 5 mm wide) where used by the linkage
+- 6 mm precision steel balls used inside the printed bearing-shell assembly
+- a printed bearing spacer that adapts a standard 686ZZ for the original M5 Ender fastener while providing flange-like retention
+- a printed motor spacer that lets the donor stepper and its already-installed 20T pulley fit the arm drive geometry
+- printed bearing-shell top and bottom parts that use loose 6 mm steel balls instead of requiring a purchased bearing assembly
 
-The exact quantities and part-by-part locations are maintained in the hardware documentation.
+The 6 mm loose balls and the 686ZZ bearings serve different functions: the loose balls run in the printed bearing shell, while the 686ZZ is used with the printed M5 bearing spacer. Exact quantities and part-by-part locations are maintained in the hardware documentation.
 
 ## Repository layout
 

@@ -1,0 +1,42 @@
+category,item,quantity,specification,source,status,notes
+Donor,Ender 3 or Ender 3 Pro,1,,Donor,Reuse,Reference build tested on Ender 3
+Donor,Original Ender controller board,1,,Donor,Reuse,Runs Klipper
+Donor,Original Ender power supply,1,,Donor,Reuse,
+Donor,Original Ender stepper motors,4,,Donor,Reuse,Four robot DOFs
+Donor,Original Ender endstops and wiring,reuse,,Donor,Reuse,
+Donor,Original Ender linear carriage/extrusions,1 set,,Donor,Reuse,Linear DOF
+Donor,Original Ender M5 hardware and T-nuts,reuse,,Donor,Reuse,Used at converted pivots where applicable
+Donor,Stock X/Y 20T GT2 pulleys,2,20 tooth,Donor,Reuse,Remain installed on donor motors
+Additional,F624ZZ flanged bearing,6,4x13x5 mm,Purchase,Keep,Upstream item retained
+Additional,686ZZ bearing,12,6x13x5 mm,Purchase,Replace,Replaces F686ZZ when used with printed spacer
+Additional,6 mm precision steel balls,15,6 mm diameter,Purchase,Replace,Replaces 51105 thrust bearing with printed shell
+Additional,GT2 closed-loop timing belt,3,200 mm circumference x 6 mm wide,Purchase,Keep,Upstream item retained
+Additional,GT2 20T pulley,1,20 tooth for 6 mm GT2 belt,Purchase or print,Add,Two other pulleys reused from donor
+Fastener,M2 x 10 mm button-head screw,6,M2,Purchase or reuse,Keep,
+Fastener,M3 x 6 mm button-head screw,36,M3,Purchase or reuse,Keep,
+Fastener,M4 x 10 mm button-head screw,6,M4,Purchase or reuse,Keep,
+Fastener,M4 x 16 mm button-head screw,8,M4,Purchase or reuse,Keep,
+Fastener,M4 x 20 mm button-head screw,6,M4,Purchase or reuse,Keep,
+Fastener,M2 nut,6,M2,Purchase or reuse,Keep,
+Fastener,M3 nut,4,M3,Purchase or reuse,Keep,
+Fastener,M4 lock nut,14,M4,Purchase or reuse,Keep,
+Printed,bearing-shell-top.stl,1,,Print,Add,Upper half of loose-ball thrust bearing
+Printed,bearing-shell-bottom.stl,1,,Print,Add,Lower half of loose-ball thrust bearing
+Printed,bearing-spacer.stl,12,,Print,Add,686ZZ to M5 interface with flange-like retention
+Printed,motor-spacer.stl,2,,Print,Add,Retains stock 20T pulleys on donor X/Y motors
+Removed,Arduino Mega 2560,1,,Upstream,Remove,Replaced by Ender controller
+Removed,RAMPS 1.4,1,,Upstream,Remove,Replaced by Ender controller
+Removed,A4988 stepper driver,3,,Upstream,Remove,Drivers integrated on Ender board
+Removed,12 V 4 A power supply,1,,Upstream,Remove,Replaced by Ender PSU
+Removed,Female 2.1 mm DC jack,1,,Upstream,Remove,Not required
+Removed,NEMA17 stepper motor,3,,Upstream,Remove,Replaced by four donor Ender motors
+Removed,28BYJ-48 gripper motor,1,,Upstream,Remove,Powered gripper omitted
+Removed,ULN2003,1,,Upstream,Remove,Powered gripper omitted
+Removed,12 V 5010 fan,1,,Upstream,Remove,Not required
+Removed,F686ZZ flanged bearing,12,,Upstream,Replace,Use standard 686ZZ plus printed spacer
+Removed,51105 thrust bearing,1,,Upstream,Replace,Use printed shell plus 15 x 6 mm balls
+Removed,M6 x 20 mm button-head screw,1,M6,Upstream,Replace,Use donor M5 pivot hardware
+Removed,M6 x 40 mm button-head screw,2,M6,Upstream,Replace,Use donor M5 pivot hardware
+Removed,M6 x 50 mm button-head screw,1,M6,Upstream,Replace,Use donor M5 pivot hardware
+Removed,M6 lock nut,4,M6,Upstream,Replace,Use M5-compatible donor hardware
+Removed,Paper clip min 35 mm,2,,Upstream,Remove,Gripper linkage omitted

@@ -1,12 +1,10 @@
 # Build photography
 
-Use this directory for the photographs and screenshots referenced by the build documentation.
-
-Photographs should be clear engineering documentation rather than decorative images. Use a clean background, even lighting, and enough resolution to show hardware details. Keep the same arm orientation between related photos when possible.
+Assembly, wiring, and sensor photos used in the guides.
 
 ## Current reference photos
 
-These cleaned reference-build photographs are already included in the repository:
+Included photos:
 
 | File | Use |
 | --- | --- |
@@ -21,13 +19,8 @@ The repository copies are re-encoded JPEGs with camera metadata removed.
 
 The sensor mounting photos are in `sensors/sensor-head-front.jpg` and
 `sensors/sensor-head-side.jpg`. Visible equipment identifiers are masked.
-`../videos/arm-motion-web.mp4` is the compressed, full-length browser version.
-`../videos/arm-motion-full.mp4` contains the full 44-second video, with the
-original encoded picture, resolution, and framing unchanged. Only audio and
-capture/device/location metadata were removed. Visible video labels were
-explicitly retained; no masks or black boxes are present. Original capture
-names are not included. Media demonstrates the assembly;
-it does not certify gesture recognition or safety performance.
+The [video](../videos/arm-motion-web.mp4) shows the arm in motion.
+A [full-resolution copy](../videos/arm-motion-full.mp4) is also available.
 
 ## File format
 

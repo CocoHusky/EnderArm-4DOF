@@ -1,16 +1,15 @@
-# EnderArm — an Ender 3 turned robot arm
+# EnderArm
 
-Reuse a 3D printer's motors, controller, power supply, and frame to build a
-browser-controlled robot arm. Teach it positions, edit a movement sequence,
-and save programs to run again. This build uses it to operate beer taps.
+An Ender 3 converted into a robot arm, using its motors, controller, power
+supply, and frame. It runs saved movements from a browser. This one operates
+beer taps.
 
 The Linux host runs the interface and arm geometry; Klipper handles motion.
 The camera, touch sensor, and linear rail are optional.
 
 https://github.com/user-attachments/assets/b2309b1c-bfe8-4a8f-a414-62b6e4a15c9a
 
-*The reference build in motion · 44 seconds · no audio.*
-[Full-resolution download](docs/videos/arm-motion-full.mp4)
+[Download video](docs/videos/arm-motion-full.mp4)
 
 ## Start here
 
@@ -21,25 +20,19 @@ https://github.com/user-attachments/assets/b2309b1c-bfe8-4a8f-a414-62b6e4a15c9a
 3. **[Add the optional sensor](docs/sensors.md)** — touch gestures, LED feedback,
    and acceleration readings. The arm works without it.
 
-This build started with an Ender 3. An Ender 3 Pro can also be used, but check
-the controller revision and wiring before copying pin assignments. The reference
-installation currently runs with the linear rail disabled.
+An Ender 3 Pro can also be used. Check the controller revision and wiring before
+copying pin assignments. The linear rail is disabled on this build.
 
-## What works, and what still needs testing
+## Status
 
-The reference arm has been used for homing, joint and Cartesian movement, saved
-programs, and beer-tap operation. The browser UI also has a workspace view,
-diagnostics, optional camera, and private remote access. Your build still needs
-its own calibration and clearance checks.
+Homing, joint and Cartesian movement, saved programs, and beer-tap operation
+have been tested on this arm.
 
-Sensor firmware 0.3.0 has been flashed and live acceleration and LED commands
-checked. The three press zones, two swipes, and impact/Z-stop logic are
-implemented, but physical gesture accuracy and intentional impact-stop tests
-are still pending. Automatic sensor actions are off by default.
+Sensor readings and LED commands work with firmware 0.3.0. Presses, swipes, and
+impact stops still need physical testing. Sensor-triggered motion is off by default.
 
-Software checks cover geometry, boundaries, and sensor logic. They do not prove
-that a physical movement is safe. Check free movement and endstops first, then
-test slowly. The sampled sensor guards are not a hardware emergency stop.
+Calibrate your own build, check endstops and clearances, and test slowly.
+The sensor is not a replacement for a hardware emergency stop.
 
 ## The build
 
@@ -52,7 +45,7 @@ and elbow. Base rotation and the optional retained linear axis bring the total
 to four powered axes. Most of the extra hardware is bearings, belts, fasteners,
 and printed parts; the [hardware guide](hardware/README.md) lists the details.
 
-## More detail
+## Documentation
 
 - [Using the controller](docs/controller.md)
 - [Linkage geometry and coordinate systems](docs/kinematics/README.md)

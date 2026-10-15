@@ -14,6 +14,5 @@ New build? Start with [hardware](../hardware/README.md), then
 | [Testing and deployment](ci-cd.md) | Local checks, CI, manual host updates |
 | [Photos](images/README.md) | Reference assembly images and media notes |
 
-Implementation history lives in [update notes](updates/2026-10-sensors-boundary.md),
-not in the setup steps. [Publication notes](publication.md) explain what is
-excluded from the public snapshot.
+[Change notes](updates/2026-10-sensors-boundary.md) ·
+[Files excluded from this repository](publication.md)

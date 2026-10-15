@@ -4,7 +4,7 @@ Build the mechanism and check the wiring using the [hardware guide](../hardware/
 first. This guide covers the Linux host and robot controller. The
 [optional sensor guide](../docs/sensors.md) is separate; no sensor is required.
 
-EnderArm splits high-level robot geometry from deterministic step timing.
+The host calculates arm positions; Klipper drives the motors.
 
 ```text
 Browser UI
@@ -28,7 +28,7 @@ original Ender controller board
 
 ## Host requirements
 
-A Dell Wyse is **not required**. Use a Raspberry Pi, mini PC, old laptop, thin client, or other Debian/Linux machine.
+Use a Raspberry Pi, mini PC, old laptop, or thin client running Debian/Linux.
 
 Minimum practical target:
 
@@ -38,7 +38,7 @@ Minimum practical target:
 - USB connection to the Ender controller
 - network access if the UI is opened from another device
 
-The reference build used a used Dell Wyse only because it was cheaper than Raspberry Pi hardware at the time.
+This build uses a secondhand Dell Wyse.
 
 ## Source files
 

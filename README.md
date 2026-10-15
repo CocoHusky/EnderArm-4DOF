@@ -7,18 +7,44 @@ beer taps.
 The Linux host runs the interface and arm geometry; Klipper handles motion.
 The camera, touch sensor, and linear rail are optional.
 
+```mermaid
+flowchart TD
+    Browser[Browser controls and saved programs] --> Host[Linux host: UI and arm geometry]
+    Host --> Moonraker --> Klipper
+    Klipper -->|USB| Board[Ender controller]
+    Power[Ender power supply] --> Board
+    Board --> Motors[Two linkage motors and base rotation]
+    Board --> Rail[Linear rail: optional]
+    Endstops[Homing switches] --> Board
+    Motors --> Arm[Printed arm, belts and bearings]
+    Sensor[FRDM-KL02Z: touch, LED and accelerometer] -. optional USB .-> Host
+    Camera[USB camera] -. optional .-> Host
+    Remote[Remote browser through Tailscale] -. optional .-> Host
+```
+
 https://github.com/user-attachments/assets/b2309b1c-bfe8-4a8f-a414-62b6e4a15c9a
 
 [Download video](docs/videos/arm-motion-full.mp4)
 
-## Start here
+## Build order
 
-1. **[Build the hardware](hardware/README.md)** — donor parts, printed adapters,
-   assembly, wiring, and the [parts list](hardware/bom/README.md).
-2. **[Set up the software](software/README.md)** — Linux host, Klipper,
-   Moonraker, and the browser controller.
-3. **[Add the optional sensor](docs/sensors.md)** — touch gestures, LED feedback,
-   and acceleration readings. The arm works without it.
+1. **Check the parts.** Start with the [parts list](hardware/bom/README.md).
+   The main arm design comes from ToolKnox; the
+   [hardware guide](hardware/README.md#base-arm-design-and-assembly-reference)
+   links its models and assembly instructions.
+2. **Build the mechanism.** Keep the Ender base, motors, controller, and power
+   supply. Assemble the arm with the [Ender adapters](hardware/adapters/README.md)
+   and follow the [conversion steps](hardware/README.md#how-the-ender-conversion-is-assembled).
+3. **Wire it and install the software.** Check the donor board's pin assignments,
+   then [set up Linux, Klipper, Moonraker, and the UI](software/README.md).
+4. **Calibrate before running programs.** Follow the
+   [first-power checks](software/README.md#first-power-checks): endstops, motor
+   directions, homing, offsets, boundaries, and cable clearance.
+5. **Record a short program.** Use the [controller](docs/controller.md#ui) to
+   jog, record positions, edit the route, and save it. Test slowly before using
+   it on a tap.
+6. **Add extras last.** Set up the [touch sensor](docs/sensors.md), or enable
+   the camera and remote access in [feature settings](software/README.md#optional-features).
 
 An Ender 3 Pro can also be used. Check the controller revision and wiring before
 copying pin assignments. The linear rail is disabled on this build.
@@ -46,6 +72,17 @@ to four powered axes. Most of the extra hardware is bearings, belts, fasteners,
 and printed parts; the [hardware guide](hardware/README.md) lists the details.
 
 ## Documentation
+
+The steps above are the build route. These are the files to read when changing it:
+
+- [`hardware/`](hardware/README.md) — parts, printed adapters, and assembly
+- [`software/host/`](software/host/) — browser controller, geometry, and optional devices
+- [`software/klipper/`](software/klipper/) — robot motion extension
+- [`firmware/frdm-kl02z/`](firmware/frdm-kl02z/README.md) — optional sensor firmware
+- [`software/tests/`](software/tests/) — hardware-free tests
+- [`.github/workflows/`](.github/workflows/) — checks and manual deployment
+
+Further reading:
 
 - [Using the controller](docs/controller.md)
 - [Linkage geometry and coordinate systems](docs/kinematics/README.md)

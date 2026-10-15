@@ -1,15 +1,16 @@
-# EnderArm
+# EnderArm — an Ender 3 turned robot arm
+
+Reuse a 3D printer's motors, controller, power supply, and frame to build a
+browser-controlled robot arm. Teach it positions, edit a movement sequence,
+and save programs to run again. This build uses it to operate beer taps.
+
+The Linux host runs the interface and arm geometry; Klipper handles motion.
+The camera, touch sensor, and linear rail are optional.
 
 https://github.com/user-attachments/assets/b2309b1c-bfe8-4a8f-a414-62b6e4a15c9a
 
-An Ender 3 converted into a robot arm, reusing its motors, controller, power
-supply, and frame. The current build operates beer taps using saved movements
-from a browser UI. Klipper handles motion; the Linux host handles the interface
-and arm geometry.
-
-Full 44-second video, compressed for playback. Original framing, no crops or
-black boxes; audio and capture/device/location metadata removed.
-[Download the full-resolution version](docs/videos/arm-motion-full.mp4).
+*The reference build in motion · 44 seconds · no audio.*
+[Full-resolution download](docs/videos/arm-motion-full.mp4)
 
 ## Start here
 

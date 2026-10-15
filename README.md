@@ -10,6 +10,9 @@ angle or tool position, record waypoints, adjust their order and timing, and
 save the sequence to run again. The same controls can be used to teach other
 movements; the programs are not limited to taps.
 
+The [Insignia keezer collar](https://www.printables.com/model/1869428-insignia-keezer-collar)
+is available separately on Printables.
+
 To build one, you need an Ender 3 or Ender 3 Pro, access to a 3D printer for the
 arm and adapters, bearings, belts, fasteners, and a Linux computer connected
 to the controller over USB. The [parts list](hardware/bom/README.md) covers

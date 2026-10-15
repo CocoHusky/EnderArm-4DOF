@@ -2,12 +2,18 @@
 
 This directory contains the mechanical files, Ender-specific conversion parts, and bill of materials for the Ender 3 / Ender 3 Pro to 4-DOF robot-arm conversion.
 
+Work through the assembly and wiring checks below before moving to
+[software setup](../software/README.md). The [sensor head](../docs/sensors.md)
+is optional and can be added after the arm is working.
+
 ## Structure
 
-- bom/ — donor hardware and additional parts to buy
-- stl/ — arm printable files
-- step/ — editable CAD exchange files
-- adapters/ — Ender-specific conversion parts
+- [Parts list](bom/README.md) — donor hardware and additional parts to buy
+- [Printed adapters](adapters/README.md) — Ender-specific conversion parts
+- [Reference photos](../docs/images/README.md) — assembly and wiring details
+
+The upstream arm files are separate; see [sources and licensing](../THIRD_PARTY.md)
+before obtaining or redistributing them.
 
 Third-party printable files should retain their original attribution and license. Ender-specific parts are kept separately so it is clear which pieces belong to this conversion.
 

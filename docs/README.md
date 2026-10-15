@@ -1,15 +1,19 @@
-# Documentation
+# Guides
 
-The documentation is organized in the same order a new builder should follow.
+New build? Start with [hardware](../hardware/README.md), then
+[software](../software/README.md). The [sensor guide](sensors.md) is optional.
 
-## Build sequence
+| Guide | What it covers |
+| --- | --- |
+| [Hardware](../hardware/README.md) | Donor parts, assembly, adapters, wiring checks |
+| [Parts list](../hardware/bom/README.md) | Purchased, printed, and reused parts |
+| [Software](../software/README.md) | Host, Klipper, Moonraker, controller setup |
+| [Optional sensor](sensors.md) | Board setup, gestures, colors, sampled guards |
+| [Controller](controller.md) | UI behavior, configuration, coordinate conventions |
+| [Kinematics](kinematics/README.md) | Linkage dimensions and coordinate math |
+| [Testing and deployment](ci-cd.md) | Local checks, CI, manual host updates |
+| [Photos](images/README.md) | Reference assembly images and media notes |
 
-- `build/` — donor printer, disassembly, printed parts, and mechanical assembly
-- `electronics/` — controller board, motors, endstops, power, and wiring
-- `host/` — Raspberry Pi or other Debian/Linux host setup; minimum 2 GB RAM and 2 GB available storage
-- `kinematics/` — linkage geometry, coordinate frames, forward and inverse kinematics
-- `calibration/` — homing, zero offsets, workspace measurement, and validation
-- `troubleshooting/` — mechanical, wiring, Klipper, and motion-control problems
-- `images/` — required build photographs, screenshots, and validation videos
-
-The build guide should be usable from start to finish without requiring knowledge of the development history of the project.
+Implementation history lives in [update notes](updates/2026-10-sensors-boundary.md),
+not in the setup steps. [Publication notes](publication.md) explain what is
+excluded from the public snapshot.

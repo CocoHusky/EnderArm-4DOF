@@ -1,5 +1,9 @@
 # Software
 
+Build the mechanism and check the wiring using the [hardware guide](../hardware/README.md)
+first. This guide covers the Linux host and robot controller. The
+[optional sensor guide](../docs/sensors.md) is separate; no sensor is required.
+
 EnderArm splits high-level robot geometry from deterministic step timing.
 
 ```text

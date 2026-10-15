@@ -1,221 +1,63 @@
-# Ender 3 → 4-DOF Robot Arm
+# EnderArm
 
-Convert a low-cost used Creality Ender 3 or Ender 3 Pro into a programmable 4-DOF robotic arm for learning robotics, kinematics, motion control, and non-Cartesian mechanisms.
+https://github.com/user-attachments/assets/8faff533-f1ab-4851-9960-8ddb0e3fdf84
 
-## Watch it move
+An Ender 3 converted into a robot arm, reusing its motors, controller, power
+supply, and frame. The current build operates beer taps using saved movements
+from a browser UI. Klipper handles motion; the Linux host handles the interface
+and arm geometry.
 
-[![Watch the robot-arm motion video](docs/images/sensors/sensor-head-side.jpg)](docs/videos/arm-motion-detail.mp4)
+The video is a short, silent motion detail. It is cropped and equipment labels
+are obscured. [Download the clip](docs/videos/arm-motion-detail.mp4).
 
-[▶ Watch the motion video](docs/videos/arm-motion-detail.mp4) — cropped, silent,
-with equipment identifiers obscured. Click the preview to open the video.
+## Start here
 
-## Working controller update — October 2026
+1. **[Build the hardware](hardware/README.md)** — donor parts, printed adapters,
+   assembly, wiring, and the [parts list](hardware/bom/README.md).
+2. **[Set up the software](software/README.md)** — Linux host, Klipper,
+   Moonraker, and the browser controller.
+3. **[Add the optional sensor](docs/sensors.md)** — touch gestures, LED feedback,
+   and acceleration readings. The arm works without it.
 
-The current reference installation includes native Klipper coordinated motion and
-homing, a waypoint program editor with saved programs and per-point timing,
-workspace inspection, diagnostics, an optional floating USB camera window, and
-private remote access through Tailscale. The reference robot currently runs with
-the optional rail disabled. The owner has tested the running installation; the
-portable feature configuration is checked by CI and deployed on that
-installation. Optional FRDM-KL02Z sensor support adds live acceleration, touch
-gestures, LED feedback, and explicitly enabled sampled protection. Sensors are
-not required for normal arm operation.
+This build started with an Ender 3. An Ender 3 Pro can also be used, but check
+the controller revision and wiring before copying pin assignments. The reference
+installation currently runs with the linear rail disabled.
 
-Start with [software setup](software/README.md), then read the
-[current architecture and feature guide](docs/controller.md) and
-[CI/CD and installation guide](docs/ci-cd.md).
-See the [October sensor and boundary update](docs/updates/2026-10-sensors-boundary.md)
-for firmware, gesture setup, boundary calibration, and validation limits.
+## What works, and what still needs testing
 
+The reference arm has been used for homing, joint and Cartesian movement, saved
+programs, and beer-tap operation. The browser UI also has a workspace view,
+diagnostics, optional camera, and private remote access. Your build still needs
+its own calibration and clearance checks.
 
-<p align="center">
-  <img src="docs/images/overview/assembled-arm-on-ender-base.jpg" alt="EnderArm 4-DOF reference build mounted on the retained Ender 3 base" width="760">
-</p>
+Sensor firmware 0.3.0 has been flashed and live acceleration and LED commands
+checked. The three press zones, two swipes, and impact/Z-stop logic are
+implemented, but physical gesture accuracy and intentional impact-stop tests
+are still pending. Automatic sensor actions are off by default.
 
-The project reuses the donor printer's frame components, stepper motors, power supply, wiring, endstops, controller board, and original linear Y-axis. The reference build was developed and tested from an Ender 3. An Ender 3 Pro can be used as well; board revisions and mounting details should always be verified before flashing firmware or assembling printed parts.
+Software checks cover geometry, boundaries, and sensor logic. They do not prove
+that a physical movement is safe. Check free movement and endstops first, then
+test slowly. The sampled sensor guards are not a hardware emergency stop.
 
-## Reference build
+## The build
 
-The photos below show the current working reference assembly and the major subsystems reused from the donor printer.
-
-| Arm and linkage | Complete reference system |
+| Arm mechanism | Tool-mounted sensor (optional) |
 | --- | --- |
-| ![Standalone closed-linkage arm](docs/images/overview/arm-linkage-assembly.jpg) | ![Complete EnderArm reference build](docs/images/overview/full-system-reference-build.jpg) |
-| **Base rotation and endstops** | **Controller and host wiring** |
-| ![Base rotation and endstop hardware](docs/images/mechanical-assembly/base-rotation-endstops.jpg) | ![Original Ender controller and host wiring](docs/images/wiring/controller-host-wiring.jpg) |
+| ![Closed-linkage arm](docs/images/overview/arm-linkage-assembly.jpg) | ![Sensor mounting](docs/images/sensors/sensor-head-side.jpg) |
 
-A detailed bearing and linkage close-up is available in [the mechanical assembly photos](docs/images/mechanical-assembly/linkage-bearing-detail.jpg).
+The two side motors drive a closed linkage, rather than a conventional shoulder
+and elbow. Base rotation and the optional retained linear axis bring the total
+to four powered axes. Most of the extra hardware is bearings, belts, fasteners,
+and printed parts; the [hardware guide](hardware/README.md) lists the details.
 
-## Current use: pouring beer
+## More detail
 
-The current working robot is being used as a practical motion-control demo to **pour beers**. That use case exercises the same capabilities the project was built to study: repeatable homing, coordinated 4-axis motion, Cartesian targeting, smooth trajectories, and safe workspace limits.
+- [Using the controller](docs/controller.md)
+- [Linkage geometry and coordinate systems](docs/kinematics/README.md)
+- [Tests and manual deployment](docs/ci-cd.md)
+- [Sensor and boundary change notes](docs/updates/2026-10-sensors-boundary.md)
+- [Build photos](docs/images/README.md)
+- [Contributing](CONTRIBUTING.md) · [Upstream sources and licensing](THIRD_PARTY.md)
 
-### Optional sensor head
-
-The FRDM-KL02Z board mounts at the tool end for capacitive gesture input,
-three-axis acceleration, and RGB feedback. Sensor hardware is optional;
-automatic program starts and sampled protection require explicit enablement.
-
-| Sensor head · front | Arm and sensor · side |
-| --- | --- |
-| ![Tool-mounted sensor board](docs/images/sensors/sensor-head-front.jpg) | ![Side view of the arm and sensor mounting](docs/images/sensors/sensor-head-side.jpg) |
-
-The video above illustrates mechanism movement, not a validation of impact stopping or
-gesture accuracy. See [the update notes](docs/updates/2026-10-sensors-boundary.md).
-
-## Why this project exists
-
-A 3D printer is already a complete motion-control platform: stepper motors, drivers, power electronics, limit switches, belts, pulleys, a rigid frame, and a host-to-controller communication path. This project repurposes those parts into an articulated mechanism so the same hardware can be used to study:
-
-- forward and inverse kinematics
-- closed-linkage motion
-- joint-space and Cartesian control
-- homing and calibration
-- motion planning
-- workspace limits
-- motor dynamics
-- belt reduction
-- coordinated multi-axis motion
-- embedded motion control with Klipper
-
-A used Ender 3 can often be found for roughly $30. The conversion is designed to reuse as much original hardware as possible.
-
-## Four degrees of freedom
-
-The arm uses four powered motions:
-
-| DOF | Function | Donor hardware |
-| --- | --- | --- |
-| 1 | Linear base travel | Original Ender Y-axis carriage |
-| 2 | Base rotation | Reused Ender stepper |
-| 3 | Main arm joint | Reused Ender stepper, 20T-to-90T belt reduction |
-| 4 | Crank/linkage joint | Reused Ender stepper, 20T-to-90T belt reduction |
-
-The two arm-side motors drive a closed linkage rather than a conventional serial shoulder/elbow pair. The main arm is driven through the 120 mm A-C link and the second motor drives the 40 mm A-B crank. The linkage constrains the remaining arm geometry and keeps the tool structure oriented through the workspace.
-
-## Control architecture
-
-The reference control stack uses the original Ender controller board as the real-time motion controller running Klipper.
-
-```text
-Browser / control UI
-        |
-        v
-Python arm controller + kinematics
-        |
-        v
-Moonraker / Klipper host
-        |
-       USB
-        |
-        v
-Original Ender controller board
-        |
-        v
-4 stepper motors + endstops
-```
-
-The host can be any Raspberry Pi, single-board computer, mini PC, desktop, or laptop capable of running Debian/Linux, Klipper, Moonraker, and the control application.
-
-The reference build also needed a **fourth endstop input** for the retained linear axis. On the reference 8-bit Creality board, an unused **bed-temperature / B-MOT thermistor input** was repurposed as a digital endstop input rather than adding another controller. The switch is read by Klipper as a pulled-up digital input; details are documented in the hardware/software setup.
-
-**Minimum host requirement:** approximately **2 GB RAM and 2 GB available storage**. A dedicated host is not required if an existing Linux computer can be used.
-
-## Additional hardware
-
-The conversion is intended to keep the purchased hardware minimal. The reference build uses:
-
-- GT2 timing belt, 200 mm long and 6 mm wide for the side-joint drives
-- the donor X/Y stepper motors with their existing 20-tooth GT2 pulleys retained
-- standard 686ZZ bearings (6 mm bore × 13 mm OD × 5 mm wide) where used by the linkage
-- 6 mm precision steel balls used inside the printed bearing-shell assembly
-- `686ZZ M5 Bearing Spacer.stl` adapts a standard 686ZZ for the original M5 Ender fastener while providing flange-like retention
-- `Ender XY 20T Pulley Motor Spacer.stl` lets the donor X/Y steppers retain their already-installed 20T pulleys
-- `6mm Ball Thrust Bearing Shell Top.stl` and `6mm Ball Thrust Bearing Shell Bottom.stl` use loose 6 mm steel balls instead of a purchased thrust bearing
-
-The 6 mm loose balls and the 686ZZ bearings serve different functions: the loose balls run in the printed bearing shell, while the 686ZZ is used with the printed M5 bearing spacer. Exact quantities and part-by-part locations are maintained in the hardware documentation.
-
-## Repository layout
-
-```text
-EnderArm-4DOF/
-├── README.md
-├── CONTRIBUTING.md
-├── THIRD_PARTY.md
-├── docs/
-│   ├── README.md
-│   ├── build/
-│   ├── electronics/
-│   ├── host/
-│   ├── kinematics/
-│   ├── calibration/
-│   ├── troubleshooting/
-│   └── images/
-├── hardware/
-│   ├── README.md
-│   ├── bom/
-│   ├── stl/
-│   ├── step/
-│   └── adapters/
-├── software/
-│   ├── README.md
-│   ├── host/
-│   ├── klipper/
-│   └── tests/
-└── config/
-    ├── ender3/
-    └── ender3-pro/
-```
-
-## Build path
-
-1. Verify the donor printer and controller board.
-2. Disassemble the X/Z gantry while retaining the Y-axis base.
-3. Print the arm components and Ender-specific adapters.
-4. Assemble the base rotation and closed-linkage arm.
-5. Install belts, pulleys, bearings, and endstops.
-6. Wire the four reused Ender steppers to the original controller.
-7. Install Klipper and Moonraker on the host.
-8. Install the EnderArm control software.
-9. Home and calibrate each powered axis.
-10. Measure the physical joint-zero offsets.
-11. Validate the workspace boundary.
-12. Test joint-space motion, Cartesian targets, and coordinated trajectories.
-
-## Kinematics
-
-The side-plane arm uses the following coordinate convention:
-
-- origin A: the concentric side-drive pivot
-- +Y: outward toward the tool
-- +Z: upward
-- +X: normal to the side plane
-- qX: angle of the 120 mm A-C main arm
-- qY: angle of the 40 mm A-B crank
-- 0°: link points along +Z
-- positive angle: rotation from +Z toward +Y
-
-The main driven points are:
-
-```text
-B = (40 sin(qY), 40 cos(qY))
-C = (120 sin(qX), 120 cos(qX))
-```
-
-Both side drives use a 20T motor pulley and 90T output pulley, giving a 4.5:1 reduction.
-
-Detailed linkage geometry, forward kinematics, inverse kinematics, Cartesian-to-joint conversion, and motor-ratio math are documented in [`docs/kinematics/README.md`](docs/kinematics/README.md).
-
-## Photos and build documentation
-
-All build photography follows the capture plan in `docs/images/README.md`. Photos are organized by build stage so each image can be referenced directly from the corresponding assembly document.
-
-## Third-party mechanical design
-
-This conversion builds on an existing printable parallel-link robot-arm design. Upstream attribution and redistribution terms are documented in `THIRD_PARTY.md`.
-
-Third-party files should only be committed to this repository when their license explicitly permits redistribution. Ender-specific adapters and modifications are maintained separately so the origin of each file remains clear.
-
-## Project status
-
-The mechanical conversion and arm-control workflow have been validated on the working Ender 3 reference build. Documentation, source CAD, printable files, host setup, Klipper configuration, and calibration procedures are being organized here as a reproducible build.
+The printable arm mechanism comes from an earlier open design. Check the
+upstream attribution and redistribution terms before reusing third-party parts.

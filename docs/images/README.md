@@ -21,9 +21,11 @@ The repository copies are re-encoded JPEGs with camera metadata removed.
 
 The sensor mounting photos are in `sensors/sensor-head-front.jpg` and
 `sensors/sensor-head-side.jpg`. Visible equipment identifiers are masked.
-`../videos/arm-motion-detail.mp4` is a six-second, cropped, silent motion detail
-with equipment labels obscured. Original capture names, GPS, capture dates,
-device metadata, and audio are not included. Media demonstrates the assembly;
+`../videos/arm-motion-full.mp4` contains the full 44-second video, with the
+original encoded picture, resolution, and framing unchanged. Only audio and
+capture/device/location metadata were removed. Visible video labels were
+explicitly retained; no masks or black boxes are present. Original capture
+names are not included. Media demonstrates the assembly;
 it does not certify gesture recognition or safety performance.
 
 ## File format

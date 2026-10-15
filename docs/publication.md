@@ -10,10 +10,12 @@ downloads are not included. Configure the sensor port locally with
 `ENDERARM_SENSOR_PORT`; the public default is only a generic alias.
 
 Published photos have no EXIF/XMP/camera/location metadata and visible equipment
-identifiers are obscured. The video is a six-second silent cropped excerpt,
-not the original full capture. Its container retains only technical playback
-information; location/capture/device metadata and auxiliary tracks are omitted.
-Original media is not uploaded. Visual review reduces exposure but cannot
+identifiers are obscured. The video retains its full original encoded picture,
+duration, resolution and framing: it is not cropped, masked or re-encoded.
+The owner explicitly approved retaining visible video labels. Its container
+retains technical playback information (including orientation); audio and
+location/capture/device metadata and auxiliary tracks are omitted. Source
+camera files are not uploaded. Visual review reduces exposure but cannot
 guarantee that a scene is unrecognizable or that published material cannot be
 copied. Do not add original captures, private configuration, or personal paths.
 

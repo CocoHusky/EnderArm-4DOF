@@ -1,14 +1,16 @@
 # EnderArm
 
-https://github.com/user-attachments/assets/8faff533-f1ab-4851-9960-8ddb0e3fdf84
+[Full video · 44 seconds · original picture](docs/videos/arm-motion-full.mp4)
 
 An Ender 3 converted into a robot arm, reusing its motors, controller, power
 supply, and frame. The current build operates beer taps using saved movements
 from a browser UI. Klipper handles motion; the Linux host handles the interface
 and arm geometry.
 
-The video is a short, silent motion detail. It is cropped and equipment labels
-are obscured. [Download the clip](docs/videos/arm-motion-detail.mp4).
+The full video keeps its original framing, resolution, and encoded picture.
+Only audio and capture/device/location metadata were removed. No crop, masks,
+or black boxes. GitHub's 10 MB inline-attachment limit prevents embedding this
+47 MB file; use the download button on the video file page to watch it locally.
 
 ## Start here
 

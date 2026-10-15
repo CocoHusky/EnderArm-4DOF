@@ -77,7 +77,10 @@ The Ender X/Y motors already have 20T GT2 pulleys installed. The motor spacers p
 
 ## Estimated build cost
 
-The cost below is a **budget estimate as of October 2026**. It uses representative U.S. online prices and the project's $30 used-Ender donor target. Shipping and sales tax are not included.
+This is a buy-everything estimate, using a $30 used Ender, a $9.99 mixed
+fastener kit, and $10 filament. The other prices are allowances, not the
+cheapest available deals. Shipping, tax, and a host computer are extra.
+Use parts you already have and the out-of-pocket cost can be much lower.
 
 | Purchase | What it covers | Estimated cost |
 | --- | --- | ---: |
@@ -86,23 +89,29 @@ The cost below is a **budget estimate as of October 2026**. It uses representati
 | 686ZZ bearings | 20-pack; 12 required | $15.49 |
 | 6 mm precision steel balls | 100-pack; enough for the printed bearing shell | $9.99 |
 | 200 mm × 6 mm GT2 closed belts | 3 required | $1.50 |
-| M2/M3/M4/M5 button-head fastener assortment | Covers the required M2/M3/M4 screws and standard nuts | $19.99 |
-| M4 nylon lock nuts | 50-pack; 14 required | $8.99 |
-| PETG filament allowance | One 1 kg spool for printed arm/conversion parts; actual consumption depends on slicer settings | $17.99 |
+| M2/M3/M4/M5 button-head fastener assortment | Required screws and nuts, including nuts for the locking alternatives below | $9.99 |
+| M4 nylon lock nuts | Optional; use paired nuts or nuts secured with suitable threadlocker instead | $0.00 extra |
+| PETG filament allowance | One 1 kg spool; actual use depends on slicer settings | $10.00 |
 | GT2 20T pulley | Printed using the filament allowance | $0.00 |
 
 ### Reference total
 
 ```text
-Additional materials:     $84.94
+Additional materials:     $57.96
 Used Ender donor:         $30.00
 --------------------------------
-Estimated robot total:   $114.94
+Estimated robot total:    $87.96
 ```
 
-**Budget target: about $115 for the complete robot hardware** when the donor Ender is obtained for about $30 and the additional 20T pulley is printed.
+About **$88 for robot hardware** with a $30 donor and a printed third pulley.
+Bearings, balls, and belts may cost less when bought from cheaper suppliers.
+Their listed allowances are unchanged here until actual prices are available.
 
-If the third 20T pulley is purchased instead of printed, a representative 5-pack is about $6.99, bringing the estimate to about **$121.93**.
+The assembly calls for 14 M4 locking positions. Nylon lock nuts are one option;
+paired nuts need two nuts per position and enough exposed thread. Suitable
+threadlocker is another option where it will not bind a moving joint or damage
+plastic. Check that the kit has enough nuts; any extra nuts or threadlocker
+not already on hand add to the estimate. Do not glue a pivot solid.
 
 ### Host computer
 
@@ -113,20 +122,20 @@ If a compatible computer is already available, host cost is **$0 additional**.
 The donor printer is the largest variable, so a more general estimate is:
 
 ```text
-Robot total = donor Ender price + approximately $84.94
+Robot total = donor Ender price + approximately $57.96
 ```
 
-### Price references
+### Price assumptions
 
-Representative prices used for this estimate:
+Allowances used above:
 
 - 624ZZ 10-pack: $10.99
 - 686ZZ 20-pack: $15.49
 - 6 mm steel balls, 100-pack: $9.99
 - 200 mm GT2 belt: $0.50 each
-- M2-M5 button-head fastener assortment: $19.99
-- M4 nylon lock nuts, 50-pack: $8.99
-- 1 kg PETG filament allowance: $17.99
+- M2-M5 button-head fastener assortment: $9.99 (builder-supplied price)
+- Separate nylon lock-nut pack: not included
+- 1 kg PETG filament allowance: $10.00 (builder-supplied price)
 
 Prices change over time; the quantities and specifications in the BOM are the authoritative build requirements.
 

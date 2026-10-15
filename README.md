@@ -2,6 +2,13 @@
 
 Convert a low-cost used Creality Ender 3 or Ender 3 Pro into a programmable 4-DOF robotic arm for learning robotics, kinematics, motion control, and non-Cartesian mechanisms.
 
+## Watch it move
+
+[![Watch the robot-arm motion video](docs/images/sensors/sensor-head-side.jpg)](docs/videos/arm-motion-detail.mp4)
+
+[▶ Watch the motion video](docs/videos/arm-motion-detail.mp4) — cropped, silent,
+with equipment identifiers obscured. Click the preview to open the video.
+
 ## Working controller update — October 2026
 
 The current reference installation includes native Klipper coordinated motion and
@@ -53,9 +60,7 @@ automatic program starts and sampled protection require explicit enablement.
 | --- | --- |
 | ![Tool-mounted sensor board](docs/images/sensors/sensor-head-front.jpg) | ![Side view of the arm and sensor mounting](docs/images/sensors/sensor-head-side.jpg) |
 
-[Watch the motion-detail clip](docs/videos/arm-motion-detail.mp4).
-This is a cropped, silent excerpt with visible equipment identifiers obscured;
-it illustrates mechanism movement, not a validation of impact stopping or
+The video above illustrates mechanism movement, not a validation of impact stopping or
 gesture accuracy. See [the update notes](docs/updates/2026-10-sensors-boundary.md).
 
 ## Why this project exists

@@ -10,8 +10,9 @@ downloads are not included. Configure the sensor port locally with
 `ENDERARM_SENSOR_PORT`; the public default is only a generic alias.
 
 Published photos have no EXIF/XMP/camera/location metadata and visible equipment
-identifiers are obscured. The video retains its full original encoded picture,
-duration, resolution and framing: it is not cropped, masked or re-encoded.
+identifiers are obscured. The inline video is compressed for browser playback,
+with its full duration and framing retained and no crops, masks or black boxes.
+The separate full-resolution download retains the original encoded picture.
 The owner explicitly approved retaining visible video labels. Its container
 retains technical playback information (including orientation); audio and
 location/capture/device metadata and auxiliary tracks are omitted. Source

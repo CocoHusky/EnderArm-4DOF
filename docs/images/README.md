@@ -21,6 +21,7 @@ The repository copies are re-encoded JPEGs with camera metadata removed.
 
 The sensor mounting photos are in `sensors/sensor-head-front.jpg` and
 `sensors/sensor-head-side.jpg`. Visible equipment identifiers are masked.
+`../videos/arm-motion-web.mp4` is the compressed, full-length browser version.
 `../videos/arm-motion-full.mp4` contains the full 44-second video, with the
 original encoded picture, resolution, and framing unchanged. Only audio and
 capture/device/location metadata were removed. Visible video labels were

@@ -1,11 +1,27 @@
 # EnderArm
 
-An Ender 3 converted into a robot arm, using its motors, controller, power
-supply, and frame. It runs saved movements from a browser. This one operates
-beer taps.
+EnderArm turns an Ender 3 into a robot arm. The idea is to put the printer's
+motors, controller, power supply, and frame to another use instead of buying
+a separate set of robot electronics. The arm mechanism is based on the
+ToolKnox design, with adapters for the Ender hardware.
 
-The Linux host runs the interface and arm geometry; Klipper handles motion.
-The camera, touch sensor, and linear rail are optional.
+This build operates beer taps. From a browser, you can move the arm by motor
+angle or tool position, record waypoints, adjust their order and timing, and
+save the sequence to run again. The same controls can be used to teach other
+movements; the programs are not limited to taps.
+
+To build one, you need an Ender 3 or Ender 3 Pro, access to a 3D printer for the
+arm and adapters, bearings, belts, fasteners, and a Linux computer connected
+to the controller over USB. The [parts list](hardware/bom/README.md) covers
+what comes from the donor printer and what needs to be added.
+
+The Linux computer runs the browser interface and calculates arm positions;
+Klipper handles motor motion. A USB camera, touch/accelerometer board, remote
+access through Tailscale, and the retained linear rail can be enabled separately.
+None is required for basic arm control.
+
+The build steps below cover assembly, software setup, and calibration. Start
+with those before trying a saved program on your own arm.
 
 ```mermaid
 flowchart TD

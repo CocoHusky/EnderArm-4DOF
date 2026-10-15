@@ -1,0 +1,8 @@
+{
+  "rail": true,
+  "camera": true,
+  "remote_access": true,
+  "diagnostics": true,
+  "sensors": false,
+  "sensor_swipe_programs": false
+}

@@ -1,0 +1,46 @@
+name: Deploy host UI (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: controller-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: controller
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: python scripts/check.py
+      - name: Check deployment configuration
+        env:
+          TS_ID: '${{ secrets.TS_OAUTH_CLIENT_ID }}'
+          TS_SECRET: '${{ secrets.TS_OAUTH_SECRET }}'
+          SSH_KEY: '${{ secrets.CONTROLLER_SSH_KEY }}'
+          SSH_HOSTS: '${{ secrets.CONTROLLER_KNOWN_HOSTS }}'
+          TARGET: '${{ secrets.CONTROLLER_TARGET }}'
+        run: |
+          test -n "$TS_ID" && test -n "$TS_SECRET" && test -n "$SSH_KEY" && test -n "$SSH_HOSTS" && test -n "$TARGET"
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
+        with:
+          oauth-client-id: '${{ secrets.TS_OAUTH_CLIENT_ID }}'
+          oauth-secret: '${{ secrets.TS_OAUTH_SECRET }}'
+          tags: tag:ci
+          version: '1.104.1'
+      - name: Deploy only host source
+        env:
+          TARGET: '${{ secrets.CONTROLLER_TARGET }}'
+        run: |
+          ssh -o BatchMode=yes "$TARGET" 'sudo -n -l /usr/bin/systemctl restart arm-control >/dev/null'
+          tar -czf - software/host scripts/install-host.sh | ssh -o BatchMode=yes "$TARGET" 'stage=$(mktemp -d); tar -xzf - -C "$stage" && bash "$stage/scripts/install-host.sh" "$stage"'

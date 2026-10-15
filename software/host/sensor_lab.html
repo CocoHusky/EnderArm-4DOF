@@ -1,0 +1,72 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FRDM-KL02Z · Sensor Lab</title>
+<style>
+:root{color-scheme:dark;font:14px system-ui;background:#0b1119;color:#ebf1f8}*{box-sizing:border-box}
+body{max-width:1200px;margin:0 auto;padding:22px}header{display:flex;gap:15px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:24px;margin:0}h2{font-size:17px;margin:0 0 12px}small,.muted{color:#9aafc2}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.card{background:#15212e;border:1px solid #32445a;border-radius:12px;padding:17px;min-width:0}
+.badge{padding:7px 12px;border-radius:22px;background:#71302e;font-weight:700} .live{background:#215c45}
+button,select{color:#eef4fa;background:#24374a;border:1px solid #52667a;border-radius:7px;padding:9px;cursor:pointer}
+button:hover{background:#35526e}button:disabled{opacity:.4;cursor:default}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metric{padding:12px;border-radius:8px;background:#0d1823;text-align:center}
+.metric b{display:block;font-size:24px}#plot{width:100%;height:235px;background:#0b1520;border-radius:8px}
+#events{font:12px ui-monospace,monospace;max-height:210px;overflow:auto;white-space:pre-wrap}
+#ledCircle{width:64px;height:64px;border-radius:50%;background:#374151;border:3px solid #6d8299}
+label{color:#b4c5d6} .error{color:#ff9b9b} .notice{margin-top:16px;color:#ffdb91}
+@media(max-width:740px){.cards{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(3,1fr)}body{padding:12px}}
+</style>
+<header><div><h1>FRDM-KL02Z · Sensor Lab</h1><small>Live hardware readings only · standalone Mac test app · no robot commands</small></div><div class="row"><span class="badge" id="connection">DISCONNECTED</span><span id="age">No valid sample</span></div></header>
+<div class="cards">
+<section class="card"><h2>Live acceleration</h2><div class="metrics"><div class="metric">X (g)<b id="ax">—</b></div><div class="metric">Y (g)<b id="ay">—</b></div><div class="metric">Z (g)<b id="az">—</b></div></div><canvas id="plot" width="670" height="235"></canvas><small>Red = X · green = Y · blue = Z · recent 10 seconds; no artificial values.</small></section>
+<section class="card"><h2>LED interaction</h2><div class="row"><label for="mode">Mode</label><select id="mode"><option value="manual">Manual LED</option><option value="acceleration">Acceleration dominant axis</option><option value="orientation">Orientation</option><option value="slider">Capacitive slider</option><option value="tap">Tap</option><option value="motion">Movement / free fall</option></select><button id="setMode">Set mode</button></div>
+<div class="row"><div id="ledCircle"></div><div><strong id="ledLabel">Unknown</strong><div class="muted" id="modeLabel">No board report</div></div></div>
+<div class="row"><label for="color">Manual color</label><select id="color"><option>off</option><option>red</option><option>green</option><option>blue</option><option>yellow</option><option>cyan</option><option>magenta</option><option>white</option></select><button id="setColor">Set LED</button></div>
+<div class="muted" id="commandStatus">Commands require fresh firmware telemetry.</div></section>
+<section class="card"><h2>Touch and events</h2><div class="metrics"><div class="metric">Slider<b id="slider">—</b></div><div class="metric">Swipe<b id="swipe">—</b></div><div class="metric">Tap<b id="tap">—</b></div></div>
+<div class="row"><span>Electrode raw: <b id="raw">—</b></span><span>Touch: <b id="touch">—</b></span></div>
+<div class="row"><span>Movement: <b id="motion">—</b></span><span>Orientation: <b id="orientation">—</b></span></div>
+<h2>Recent hardware events</h2><div id="events">No events received.</div></section>
+<section class="card"><h2>Device diagnostics</h2><div id="diag" class="muted">Waiting for a valid FRDM-KL02Z firmware frame.</div><p class="notice">Do not use this sensor for robot KILL or automatic program execution until mounting and fault behavior have been physically verified.</p>
+<h2>Quick physical tests</h2><ol><li>Manual: verify red, green and blue LEDs.</li><li>Orientation: rotate the board slowly.</li><li>Acceleration: rotate each axis and observe the dominant color.</li><li>Slider: touch left / right and swipe.</li><li>Tap: gently tap the board; do not drop it.</li><li>Motion: shake gently, stop and observe.</li></ol></section>
+</div>
+<script>
+const $=id=>document.getElementById(id),history=[],events=[];
+let previousSeq=null,previousDeviceMs=null,lastEventKey='',isFresh=false;
+function record(message){events.unshift(new Date().toLocaleTimeString()+'  '+message);events.splice(30);$('events').textContent=events.join('\n')}
+function safe(v){return v===null||v===undefined?'—':String(v)}
+function draw(){const canvas=$('plot'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
+ctx.strokeStyle='#34465b';ctx.lineWidth=1;for(let i=0;i<5;i++){let y=i*h/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
+if(history.length<2)return;
+[['#f57575',0],['#65c99a',1],['#7ea8ff',2]].forEach(([color,axis])=>{ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();history.forEach((p,i)=>{let x=(w*i)/200,y=h/2-p[axis]*h/5;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke()});}
+const palette={off:'#374151',red:'#eb4747',green:'#28bb73',blue:'#468af5',yellow:'#efc34a',cyan:'#52d3dc',magenta:'#c868db',white:'#f0f4ff'};
+function noData(detail){isFresh=false;$('connection').textContent='NO LIVE DATA';$('connection').className='badge';$('age').textContent=detail||'Disconnected';
+['ax','ay','az','slider','swipe','tap','raw','touch','motion','orientation'].forEach(id=>$(id).textContent='—');$('ledLabel').textContent='Unknown';$('ledCircle').style.background=palette.off;
+$('setMode').disabled=true;$('setColor').disabled=true;}
+function update(data){
+ const age=Number(data.age_s),frame=data.frame;isFresh=Boolean(data.fresh&&frame&&data.connected&&Number.isFinite(age)&&age<=.75);
+ if(!isFresh){noData(data.error||('Last sample '+(Number.isFinite(age)?(age*1000).toFixed(0)+' ms ago':'not received')));return;}
+ $('connection').textContent='LIVE · REAL HARDWARE';$('connection').className='badge live';$('age').textContent='Age '+(age*1000).toFixed(0)+' ms';
+ $('setMode').disabled=false;$('setColor').disabled=false;
+ if(frame.seq!==previousSeq){const a=frame.accel_mg.map(v=>v/1000);history.push(a);while(history.length>200)history.shift();draw();
+ if(frame.slider?.swipe&&frame.slider.swipe!=='none')record('Swipe '+frame.slider.swipe);
+ if(frame.events?.tap&&frame.events.tap!=='none')record('Tap '+frame.events.tap);
+ if(frame.events?.motion&&frame.events.motion!=='none'&&frame.events.motion!=='stationary')record('Motion '+frame.events.motion);
+ if(previousSeq!==null&&frame.seq!==((previousSeq+1)>>>0))record('Sequence discontinuity '+previousSeq+' → '+frame.seq);
+ previousSeq=frame.seq;previousDeviceMs=frame.ms;}
+ ['ax','ay','az'].forEach((id,i)=>$(id).textContent=(frame.accel_mg[i]/1000).toFixed(3));
+ $('slider').textContent=frame.slider?(Number(frame.slider.position)/10).toFixed(0)+'%':'—';
+ $('swipe').textContent=safe(frame.slider?.swipe);$('tap').textContent=safe(frame.events?.tap);
+ $('raw').textContent=safe(frame.slider?.raw_left)+' / '+safe(frame.slider?.raw_right);
+ $('touch').textContent=frame.slider?.active?'yes':'no';$('motion').textContent=safe(frame.events?.motion);$('orientation').textContent=safe(frame.events?.orientation);
+ $('ledLabel').textContent=safe(frame.led);$('modeLabel').textContent='Board mode: '+safe(frame.mode);$('ledCircle').style.background=palette[frame.led]||palette.off;
+ if(frame.mode&&document.activeElement!==$('mode'))$('mode').value=frame.mode;
+ $('diag').textContent='Device: '+safe(frame.device)+' · Firmware: '+safe(frame.fw)+' · seq: '+safe(frame.seq)+' · uptime: '+safe(frame.ms)+' ms · whoami: '+safe(frame.health?.whoami)+' · accel: '+safe(frame.health?.accel)+' · slider: '+safe(frame.health?.slider)+' · malformed: '+safe(data.malformed_frames)+' · reconnects: '+safe(data.reconnects);
+}
+async function command(action,value){try{const response=await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,value})}),json=await response.json();if(!response.ok)throw Error(json.error);$('commandStatus').textContent='Sent '+json.sent+'; awaiting hardware report.'}catch(e){$('commandStatus').textContent='Command failed: '+e.message}}
+$('setMode').onclick=()=>command('mode',$('mode').value);$('setColor').onclick=()=>command('led',$('color').value);
+async function poll(){try{const r=await fetch('/api/state',{cache:'no-store'});update(await r.json())}catch(e){noData(e.message)}}
+setInterval(poll,100);poll();
+</script></html>

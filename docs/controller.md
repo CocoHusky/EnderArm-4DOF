@@ -48,20 +48,26 @@ part of that envelope, the host plans a short interior corridor and sends the
 resulting blended joint moves instead. Boundary OFF keeps its direct Cartesian
 behavior and does not use this corridor planner.
 
-The optional tilt correction is OFF by default and is mutually exclusive with
-tilt-triggered KILL. After the existing filtered/persistent tilt fault, it
-flashes the sensor red irregularly. With no selected recovery route, it runs
+Tilt protection has one On/Off switch, a tilt limit, persistence, and a
+Correct/KILL action. Correct stops producers, lets buffered motion settle,
+then flashes red and recovers using Motor X/Y only. Motor Z and the rail stay
+fixed throughout recovery. KILL shuts Klipper down and requires Home; it
+cannot be followed directly by motion. If stopping or correction fails,
+the controller is emergency-stopped and Home is required.
+
+With no selected recovery route, correction runs
 slowly with Boundary ON: a 5 mm world-Z hop, the smallest modeled inboard
 radius at the current heading, then the highest modeled safe world Z at that
 radius.
 
 For a known linkage lock-up, record a saved route with the desired
-counter-clockwise Motor X/Y shape and select it under **Lock-up recovery**.
+counter-clockwise Motor X/Y shape and select it under **Correction route**.
 That route is checked against Boundary ON and executed as separate arrival
 stages, while the live Motor Z and rail positions are held fixed; its saved
 Motor Z and rail values are intentionally ignored. This lets a route express
 an `out → in → up → out` linkage recovery without rotating the base. It
-refuses to run unless the robot is homed and idle. A recovery that reaches every
+refuses to run without a valid home reference. A running route is stopped
+before correction begins. A recovery that reaches every
 stage leaves the existing home reference valid and normal motion available. If
 it is stopped or errors after starting, the reference is treated as uncertain:
 normal motion is locked until the operator explicitly presses Home, and

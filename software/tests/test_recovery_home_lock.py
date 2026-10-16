@@ -36,7 +36,9 @@ def saved_recovery_runner(state, points, commands, routes):
     return namespace['_queue_saved_linkage_recovery']
 
 
-def tilt_recovery_worker(state, queue_saved):
+def tilt_recovery_worker(state, queue_saved, commands=None):
+    class Cancelled(Exception):
+        pass
     source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
     function = next(node for node in source.body
                     if isinstance(node, ast.FunctionDef)
@@ -47,12 +49,16 @@ def tilt_recovery_worker(state, queue_saved):
         '_sync_state_from_arm_robot': lambda: None,
         '_program_running': lambda: False,
         'SENSOR': SimpleNamespace(
-            monitor=SimpleNamespace(kill_enabled=False), recovery_program='Known recovery'),
+            monitor=SimpleNamespace(kill_enabled=False), correct_enabled=True,
+            recovery_program='Known recovery'),
         '_start_tilt_warning_flash': lambda: (None, None),
         '_queue_saved_linkage_recovery': queue_saved,
-        '_gcode': lambda *_args, **_kwargs: None,
-        'MotionCancelled': RuntimeError,
-        'stop_event': SimpleNamespace(clear=lambda: None),
+        '_gcode': lambda command, **_kwargs: commands.append(command) if commands is not None else None,
+        '_emergency_kill': lambda reason: state.update(homed=False, home_required=True, kill_reason=reason),
+        'check_stop': lambda: None,
+        'correction_cancel_event': SimpleNamespace(is_set=lambda: False),
+        'MotionCancelled': Cancelled,
+        'stop_event': SimpleNamespace(set=lambda: None, clear=lambda: None),
         'correction_thread_lock': nullcontext(),
         'correction_thread': None,
     }
@@ -61,6 +67,37 @@ def tilt_recovery_worker(state, queue_saved):
 
 
 class RecoveryHomeLockTests(unittest.TestCase):
+    def test_generic_recovery_holds_base_and_rail(self):
+        source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
+        function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
+                        and n.name == '_queue_recovery_stage')
+        commands = []
+        namespace = {
+            'state': {'x': 10, 'y': 20, 'z': 77, 'linear_y': 4},
+            'check_stop': lambda: None,
+            'safe_joint_route': lambda start, end: [start, (25, 35), end],
+            '_gcode': lambda command, **_kwargs: commands.append(command),
+            '_sync_state_from_arm_robot': lambda: None,
+        }
+        exec(compile(ast.Module(body=[function], type_ignores=[]), '<recovery-stage>', 'exec'), namespace)
+        namespace['_queue_recovery_stage']({'A': 30, 'B': 40, 'C': 99, 'D': 80}, 'test')
+        self.assertEqual(commands, [
+            'ARM_MOVE_JOINT A=25.00000 B=35.00000 C=77.00000 D=4.00000',
+            'ARM_MOVE_JOINT A=30.00000 B=40.00000 C=77.00000 D=4.00000', 'M400'])
+
+    def test_stop_and_drain_precede_correction(self):
+        state = {
+            'boundary_enabled': True, 'homed': True, 'busy': True,
+            'arm_speed': 40, 'arm_accel': 200, 'arm_jerk': 6,
+            'linear_speed': 30, 'linear_accel': 150, 'linear_jerk': 3,
+        }
+        commands = []
+        worker = tilt_recovery_worker(state, lambda _name: commands.append('RECOVER'), commands)
+        worker('tilt during a program')
+        self.assertEqual(commands[:2], ['ARM_DANCE_STOP', 'M400'])
+        self.assertLess(commands.index('M400'), commands.index('RECOVER'))
+        self.assertFalse(state['correction_pending'])
+
     def test_recovery_lock_rejects_motion_without_automatic_home(self):
         state = {'home_required': True, 'homed': False}
         calls = []
@@ -117,6 +154,7 @@ class RecoveryHomeLockTests(unittest.TestCase):
         worker('confirmed tilt')
         self.assertFalse(state['homed'])
         self.assertTrue(state['home_required'])
+        self.assertIn('stage failed', state['kill_reason'])
 
 
 if __name__ == '__main__':

@@ -328,12 +328,11 @@ def _sync_state_from_arm_robot():
     if not st:
         return st
     controller_homed=bool(st.get("homed",state.get("homed",False)))
-    # A completed tilt correction deliberately requires an operator-initiated
-    # Home, even though Klipper still has its prior coordinate reference.
+    # An interrupted recovery or emergency KILL invalidates the reference.
     state["homed"]=controller_homed and not state.get("home_required",False)
     # A programmed run is queued by this mapper (rather than arm_robot), so
     # do not let an idle native Dance status erase its local busy state.
-    state["busy"]=bool(st.get("dance_active",False)) or _program_running()
+    state["busy"]=bool(st.get("dance_active",False)) or _program_running() or bool(state.get("correction_pending",False))
     state["x"]=float(st.get("A",state.get("x",0.0)))
     state["y"]=float(st.get("B",state.get("y",0.0)))
     state["z"]=float(st.get("C",state.get("z",0.0)))
@@ -1151,6 +1150,8 @@ def precise_home(clear_stop=True):
 
 def ensure_homed_for_motion():
     """Restore the physical reference before accepting a motion command."""
+    if state.get("correction_pending",False):
+        raise RuntimeError("Tilt correction is in progress")
     _sync_state_from_arm_robot()
     if state.get("home_required",False):
         raise RuntimeError("Tilt recovery complete — press Home before normal motion")
@@ -1875,9 +1876,11 @@ def _program_worker(points, settings):
 def _emergency_kill(reason="emergency stop"):
     """One KILL implementation shared by the UI and confirmed sensor faults."""
     stop_event.set()
+    correction_cancel_event.set()
     state["message"]=f"KILL — {reason}; re-home required"
     state["busy"]=False
     state["homed"]=False
+    state["home_required"]=True
     try:
         _moon_post("/printer/emergency_stop", timeout=3)
     except Exception:
@@ -1924,13 +1927,21 @@ def _sensor_run_program(name):
 
 correction_thread = None
 correction_thread_lock = threading.Lock()
+correction_cancel_event = threading.Event()
 
 def _queue_recovery_stage(plan, label):
-    """Queue one recovery stage, wait for arrival, then refresh live joints."""
+    """Recover with Motor X/Y only, preserving the live base and rail."""
     check_stop()
     state["message"] = "Tilt correction — " + label
-    queue_safe_world_route(plan)
+    fixed_c=float(state["z"])
+    fixed_d=float(state.get("linear_y",0.0))
+    route=safe_joint_route((float(state["x"]),float(state["y"])),
+                           (float(plan["A"]),float(plan["B"])))
+    for a,b in route[1:]:
+        check_stop()
+        _gcode(f"ARM_MOVE_JOINT A={a:.5f} B={b:.5f} C={fixed_c:.5f} D={fixed_d:.5f}",timeout=8)
     _gcode("M400", timeout=180)
+    check_stop()
     _sync_state_from_arm_robot()
 
 def _recovery_plan_at_radius(unit_x, unit_y, radius, z, rail, seed):
@@ -2026,17 +2037,24 @@ def _tilt_correction_worker(reason):
     flash_thread=None
     recovery_started=False
     try:
+        stop_event.set()
+        state["message"]="Tilt fault — stopping before X/Y correction"
+        _gcode("ARM_DANCE_STOP",timeout=3)
         with lock:
+            # Producers hold this lock. Once it is ours, no producer can
+            # append another move; settle the remaining firmware queue.
+            _gcode("M400",timeout=15)
+            if correction_cancel_event.is_set():
+                raise MotionCancelled("Tilt correction cancelled")
             _sync_state_from_arm_robot()
             if not state.get("boundary_enabled", True):
                 raise RuntimeError("Boundary protection must be ON for tilt correction")
             if not state.get("homed"):
                 raise RuntimeError("robot must be homed for tilt correction")
-            if state.get("busy") or _program_running():
-                raise RuntimeError("robot is busy; tilt correction was not started")
-            if SENSOR is None or SENSOR.monitor.kill_enabled:
+            if SENSOR is None or SENSOR.monitor.kill_enabled or not SENSOR.correct_enabled:
                 raise RuntimeError("tilt correction is unavailable while KILL is enabled")
 
+            stop_event.clear()
             state["busy"]=True
             recovery_started=True
             state["message"]="Tilt correction starting — " + str(reason)
@@ -2049,6 +2067,7 @@ def _tilt_correction_worker(reason):
             saved_route=str(SENSOR.recovery_program or "").strip()
             if saved_route:
                 _queue_saved_linkage_recovery(saved_route)
+                check_stop()
                 state.update(homed=True,home_required=False)
                 state["message"]="Tilt correction complete — normal motion available"
                 return
@@ -2075,6 +2094,7 @@ def _tilt_correction_worker(reason):
             seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
             raised=_find_high_recovery_plan(unit_x,unit_y,float(inboard["radius_mm"]),z+5.0,rail,seed)
             _queue_recovery_stage(raised,"raising to the highest modeled safe height")
+            check_stop()
             state.update(homed=True,home_required=False)
             state["message"]="Tilt correction complete — normal motion available"
     except MotionCancelled:
@@ -2085,6 +2105,7 @@ def _tilt_correction_worker(reason):
             state["message"]="Tilt correction stopped"
         stop_event.clear()
     except Exception as exc:
+        _emergency_kill("tilt correction failed: " + str(exc))
         if recovery_started:
             state.update(homed=False,home_required=True)
             state["message"]="Tilt correction incomplete — press Home before normal motion: " + str(exc)
@@ -2104,6 +2125,7 @@ def _tilt_correction_worker(reason):
             except Exception:
                 pass
         state["busy"]=False
+        state["correction_pending"]=False
         with correction_thread_lock:
             correction_thread=None
 
@@ -2113,6 +2135,9 @@ def _request_tilt_correction(reason):
     with correction_thread_lock:
         if correction_thread and correction_thread.is_alive():
             return
+        correction_cancel_event.clear()
+        state["correction_pending"]=True
+        stop_event.set()
         correction_thread=threading.Thread(
             target=_tilt_correction_worker,args=(reason,),daemon=True,name="tilt-correction"
         )
@@ -3441,7 +3466,7 @@ function renderSensor(sensor){
   else{fault.textContent='MONITORING OFF';fault.className='badge warn'}
   $('sensorFaultReason').textContent=mon.fault_reason||(!mon.enabled
     ?'Protection off.'
-    :(sensor.correct_enabled?'On · Correct':(mon.kill_enabled?'On · KILL':'Monitoring only.')));
+    :(sensor.correct_enabled?'On · Stop, then X/Y correction':(mon.kill_enabled?'On · KILL':'Monitoring only.')));
   const recoverySelect=$('sensorRecoveryProgram'), recoveryName=sensor.recovery_program||'';
   if(recoverySelect && document.activeElement!==recoverySelect){
     const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
@@ -4853,6 +4878,9 @@ class Handler(BaseHTTPRequestHandler):
                     result=SENSOR.calibrate()
                     self.reply({"calibration":result,"sensor":SENSOR.snapshot()})
                 elif self.path=="/sensor_monitor":
+                    if body.get("enabled") is False and state.get("correction_pending",False):
+                        correction_cancel_event.set()
+                        stop_event.set()
                     self.reply(SENSOR.configure_monitor(
                         allowed_deg=body.get("allowed_deg"),
                         persistence_s=body.get("persistence_s"),
@@ -5132,6 +5160,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # STOP: non-destructive motion stop. Preserve homing and controller.
         if self.path=="/stop":
+            correction_cancel_event.set()
             stop_event.set()
             state["message"]="STOP requested — finishing buffered motion"
             try:
@@ -5181,6 +5210,9 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path=="/home":
+            if state.get("correction_pending",False):
+                self.reply({"error":"Tilt correction is in progress"},409)
+                return
             with home_request_lock:
                 if home_in_progress:
                     self.reply({"error":"Homing is already in progress",**state},409)
@@ -5189,6 +5221,8 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             with lock:
+                if state.get("correction_pending",False):
+                    raise RuntimeError("Tilt correction is in progress")
                 state["busy"]=True
                 if self.path=="/settings_endstops":
                     x,y,z=endstops()

@@ -2614,8 +2614,9 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
       <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label><button id="sensorAck" hidden>Reset fault</button></div></details>
       <details><summary>Correction path</summary><div class="muted">Relative swoop · 2 mm steps · Z stays above −130.6 mm.</div></details>
-      <details><summary>Impact & Z protection · optional</summary>
+      <details><summary>Vibration, impact & Z protection</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
+        <div class="fieldrow"><label><input id="guardBurstStop" type="checkbox"> Vibration → KILL</label><label>Spike g <input id="guardBurstG" type="number" min="0.1" max="8" step="0.05" value="0.65"></label><label>Spikes <input id="guardBurstCount" type="number" min="2" max="12" step="1" value="3"></label><label>Within s <input id="guardBurstWindow" type="number" min="0.1" max="2" step="0.05" value="0.6"></label></div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
         <div class="fieldrow"><label><input id="guardZStop" type="checkbox"> |Z| → KILL</label><label><input id="guardZColor" type="checkbox"> |Z| → yellow</label><label>|Z| limit g <input id="guardZG" type="number" min="0.05" max="2" step="0.05" value="0.3"></label><label>Hold s <input id="guardZHold" type="number" min="0.05" max="2" step="0.05" value="0.15"></label></div>
         <div class="fieldrow"><label><input id="guardSwipeColors" type="checkbox"> Gesture colors · use mapped colors while disabled</label><button id="guardApply">Apply protection</button></div>
@@ -3509,10 +3510,10 @@ function renderSensor(sensor){
   if(!sensor||!sensor.enabled)return;
   const fresh=Boolean(sensor.fresh),connected=Boolean(sensor.connected),frame=fresh?sensor.frame:null;
   const guard=sensor.guard||{};
-  $('guardStatus').textContent=(guard.fault?'LATCHED: '+guard.fault:'Impact Δg '+(guard.delta_g==null?'—':Number(guard.delta_g).toFixed(2)))+' · impact KILL '+(guard.impact_stop?'ON':'OFF')+' · Z KILL '+(guard.z_stop?'ON':'OFF');
+  $('guardStatus').textContent=(guard.fault?'LATCHED: '+guard.fault:'Impact Δg '+(guard.delta_g==null?'—':Number(guard.delta_g).toFixed(2)))+' · vibration KILL '+(guard.burst_stop?'ON':'OFF')+' · spikes '+(guard.burst_spikes??0)+' · impact KILL '+(guard.impact_stop?'ON':'OFF')+' · Z KILL '+(guard.z_stop?'ON':'OFF');
   if(!$('guardApply').dataset.dirty){
-    for(const [id,key] of [['guardImpactStop','impact_stop'],['guardImpactFlash','impact_flash'],['guardZStop','z_stop'],['guardZColor','z_color'],['guardSwipeColors','swipe_colors']])$(id).checked=Boolean(guard[key]);
-    for(const [id,key] of [['guardImpactG','impact_g'],['guardZG','z_g'],['guardZHold','z_persistence_s']])if(document.activeElement!==$(id))$(id).value=guard[key]??$(id).value;
+    for(const [id,key] of [['guardBurstStop','burst_stop'],['guardImpactStop','impact_stop'],['guardImpactFlash','impact_flash'],['guardZStop','z_stop'],['guardZColor','z_color'],['guardSwipeColors','swipe_colors']])$(id).checked=Boolean(guard[key]);
+    for(const [id,key] of [['guardBurstG','burst_g'],['guardBurstCount','burst_count'],['guardBurstWindow','burst_window_s'],['guardImpactG','impact_g'],['guardZG','z_g'],['guardZHold','z_persistence_s']])if(document.activeElement!==$(id))$(id).value=guard[key]??$(id).value;
   }
   const badge=$('sensorLinkBadge');
   if(badge){
@@ -4453,10 +4454,10 @@ async function sensorCommand(path,body){
   renderSensor(sensor);
   return result;
 }
-for(const id of ['guardImpactStop','guardImpactFlash','guardZStop','guardZColor','guardSwipeColors','guardImpactG','guardZG','guardZHold'])$(id).addEventListener('input',()=>{$('guardApply').dataset.dirty='1'});
+for(const id of ['guardBurstStop','guardBurstG','guardBurstCount','guardBurstWindow','guardImpactStop','guardImpactFlash','guardZStop','guardZColor','guardSwipeColors','guardImpactG','guardZG','guardZHold'])$(id).addEventListener('input',()=>{$('guardApply').dataset.dirty='1'});
 $('guardApply').addEventListener('click',async()=>{
-  const options={impact_stop:$('guardImpactStop').checked,impact_flash:$('guardImpactFlash').checked,z_stop:$('guardZStop').checked,z_color:$('guardZColor').checked,swipe_colors:$('guardSwipeColors').checked,impact_g:Number($('guardImpactG').value),z_g:Number($('guardZG').value),z_persistence_s:Number($('guardZHold').value)};
-  if((options.impact_stop||options.z_stop)&&!confirm('Enable sampled sensor KILL protection? A trigger stops Klipper and requires recovery/rehoming. Test LED feedback first; this is not a hardware safety interlock.'))return;
+  const options={burst_stop:$('guardBurstStop').checked,burst_g:Number($('guardBurstG').value),burst_count:Number($('guardBurstCount').value),burst_window_s:Number($('guardBurstWindow').value),impact_stop:$('guardImpactStop').checked,impact_flash:$('guardImpactFlash').checked,z_stop:$('guardZStop').checked,z_color:$('guardZColor').checked,swipe_colors:$('guardSwipeColors').checked,impact_g:Number($('guardImpactG').value),z_g:Number($('guardZG').value),z_persistence_s:Number($('guardZHold').value)};
+  if((options.burst_stop||options.impact_stop||options.z_stop)&&!confirm('Enable sampled sensor KILL protection? A trigger stops Klipper and requires recovery/rehoming. This is not a hardware safety interlock.'))return;
   try{await sensorCommand('/sensor_guard',options);delete $('guardApply').dataset.dirty}catch(e){alert(e.message)}
 });
 $('sensorCalibrate').addEventListener('click',async()=>{

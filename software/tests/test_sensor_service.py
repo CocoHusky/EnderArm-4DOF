@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from sensor_service import SensorService
 
@@ -32,6 +33,33 @@ def frame(seq=1, swipe="none"):
 
 
 class SensorServiceTests(unittest.TestCase):
+    def test_vibration_burst_kills_without_tilt_monitoring(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc = self.make_service(td)
+            svc.guard.configure({'burst_stop': True})
+            calls = []
+            svc.on_kill = calls.append
+            samples = iter(([0, 0, 1000], [1500, 0, 1000],
+                            [-1500, 0, 1000], [1500, 0, 1000], [0, 0, 1000]))
+            clock = [0.0]
+            class Stop:
+                def wait(self, _timeout):
+                    try:
+                        accel = next(samples)
+                    except StopIteration:
+                        return True
+                    clock[0] += .05
+                    svc.transport.frame['seq'] += 1
+                    svc.transport.frame['accel_mg'] = accel
+                    return False
+            svc._stop = Stop()
+            with patch('sensor_guard.time.monotonic', lambda: clock[0]):
+                svc._run()
+            self.assertEqual(len(calls), 1)
+            self.assertIn('suspected skipping', calls[0])
+            self.assertFalse(svc.swipe_enabled)
+            self.assertFalse(svc.monitor.enabled)
+
     def make_service(self, td, swipe=True):
         svc=SensorService(td+"/sensor_config.json","fake",swipe_feature=swipe)
         svc.transport=FakeTransport(frame())

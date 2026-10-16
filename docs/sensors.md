@@ -19,7 +19,7 @@ the Linux host, separate from the robot motor controller.
 3. Open **Sensors**. Check LIVE, changing sequence numbers, and healthy sensor
    readings. Stationary acceleration magnitude should be around 1 g.
 4. Leave automatic starts disabled. Enable **Gesture colors** under
-   **Impact & Z protection**, then Apply, to test with colors only.
+   **Vibration, impact & Z protection**, then Apply, to test with colors only.
 
 Do not open a second serial reader while the UI owns the port. The separate
 [Sensor Lab](../firmware/frdm-kl02z/README.md#interactive-sensor-lab-macos) is for
@@ -51,6 +51,21 @@ reconnection also cancels it. Restart/reconnection requires re-enabling;
 changing tabs does not disable it. Save route edits before using gestures.
 
 ## Tilt, impact, and orientation checks
+
+The optional **Vibration → KILL** guard is separate from tilt correction. It
+looks for large alternating or separated acceleration excursions on any axis,
+after removing slow gravity/orientation changes. Starting settings are 0.65 g
+dynamic amplitude and three distinct lobes within 0.6 seconds (count can be set
+to six). Lobes must be at least 30 ms apart and no more than 300 ms apart;
+same-direction excursions must fall below 40% amplitude to rearm. This is a
+broad burst detector, not a calibrated frequency match to a screenshot or proof
+of skipped motor steps. Healthy-sample gaps over 100 ms reset its history.
+
+It sends the existing emergency KILL, including during correction, latches the
+fault, and requires controller recovery/Home. It is off at startup and remains
+independent of the tilt On/Off switch. Enable it explicitly and Apply protection.
+The live spike count is shown even while disabled. Thresholds need physical
+validation; at roughly 75 samples/s short or high-frequency events may be missed.
 
 Calibrate the Triplate while the arm is stationary in its normal mounted pose.
 Set the tilt limit and persistence, choose Correct or KILL, then switch

@@ -89,6 +89,7 @@ lock = threading.Lock()
 home_request_lock = threading.Lock()
 home_in_progress = False
 homing_motion_active = False
+prehome_correction_active = False
 stop_event = threading.Event()
 _axes_registered = False
 ROBOT_CORNER_VEL = 6.0
@@ -1116,12 +1117,65 @@ def fine_home():
     state.update(x=ox,y=oy,z=oz,homed=True,home_x_counts=ox,home_y_counts=oy,home_z_counts=oz)
 
 def precise_home(clear_stop=True):
-    global homing_motion_active
+    global homing_motion_active, prehome_correction_active
+    prehome_correction_active=True
+    try:
+        _correct_before_home(clear_stop)
+    finally:
+        prehome_correction_active=False
     homing_motion_active=True
     try:
         return _precise_home_pass(clear_stop)
     finally:
         homing_motion_active=False
+
+def _correct_before_home(clear_stop=True):
+    """Correct a known pose before ARM_HOME discards its joint reference."""
+    if SENSOR is None or not SENSOR.monitor.enabled or not SENSOR.correct_enabled:
+        return
+    if clear_stop:
+        stop_event.clear()
+    sample=SENSOR.snapshot()
+    mon=sample.get("monitor",{})
+    angle=mon.get("tilt_deg")
+    if not sample.get("fresh") or mon.get("sample_rejected") or angle is None:
+        raise RuntimeError("Home refused: valid tilt feedback is required in Correct mode")
+    if angle<=SENSOR.monitor.allowed_deg:
+        return
+    if angle>=SENSOR.hard_kill_deg:
+        _emergency_kill("Home refused: tilt reached the hard KILL limit")
+        raise RuntimeError("Tilt is at the KILL limit")
+    _sync_state_from_arm_robot()
+    if (SENSOR.guard.fault or SENSOR.hard_kill_latched or state.get("home_required")
+            or not state.get("homed") or not state.get("boundary_enabled",True)):
+        raise RuntimeError("Home refused: tilted pose needs correction but its position is not trusted; manual recovery required")
+    saved=tuple(state[key] for key in ("arm_speed","arm_accel","arm_jerk",
+                                      "linear_speed","linear_accel","linear_jerk"))
+    speed=max(.25,min(55.0,float(saved[0])*.25))
+    state["correction_pending"]=True
+    try:
+        state["message"]="Correcting tilt before Home"
+        _gcode("ARM_DANCE_STOP",timeout=3)
+        _gcode("M400",timeout=15)
+        check_stop()
+        _sync_state_from_arm_robot()
+        if not state.get("homed") or state.get("home_required") or SENSOR.guard.fault:
+            raise RuntimeError("Position reference lost while stopping before Home")
+        _gcode(f"ARM_TUNE ARM_VELOCITY={speed:.4f} ARM_ACCEL=80 ARM_CORNER=3 "
+               "SLIDE_VELOCITY=15 SLIDE_ACCEL=60 SLIDE_CORNER=2",timeout=5)
+        _queue_incremental_recovery(speed)
+        check_stop()
+        if not SENSOR.clear_recovered_tilt():
+            raise RuntimeError("Tilt did not settle after pre-home correction")
+    except Exception:
+        _emergency_kill("Pre-home tilt correction failed; Home cancelled")
+        raise
+    finally:
+        state["correction_pending"]=False
+        av,aa,ac,sv,sa,sc=saved
+        _gcode(f"ARM_TUNE ARM_VELOCITY={av:.4f} ARM_ACCEL={aa:.4f} "
+               f"ARM_CORNER={ac:.4f} SLIDE_VELOCITY={sv:.4f} "
+               f"SLIDE_ACCEL={sa:.4f} SLIDE_CORNER={sc:.4f}",timeout=5)
 
 def _precise_home_pass(clear_stop=True):
     """Original home definition executed locally by Klipper.
@@ -2221,6 +2275,8 @@ def _tilt_correction_worker(reason):
 def _request_tilt_correction(reason):
     """Start at most one optional correction worker after a confirmed fault."""
     global correction_thread
+    if prehome_correction_active:
+        return
     if home_in_progress or homing_motion_active:
         _emergency_kill("confirmed tilt during homing; scoop correction is unavailable")
         return
@@ -5616,7 +5672,7 @@ if __name__=="__main__":
             on_correct=_request_tilt_correction,
             can_run_program=_sensor_can_run_program,
             run_program=_sensor_run_program,
-            is_homing=lambda:home_in_progress or homing_motion_active,
+            is_homing=lambda:(home_in_progress or homing_motion_active) and not prehome_correction_active,
         )
         SENSOR.start()
     try:

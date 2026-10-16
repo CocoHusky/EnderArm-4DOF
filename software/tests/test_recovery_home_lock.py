@@ -70,11 +70,45 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
 
 
 class RecoveryHomeLockTests(unittest.TestCase):
+    def test_prehome_correction_requires_reference_and_precedes_home(self):
+        source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
+        functions = [n for n in source.body if isinstance(n, ast.FunctionDef)
+                     and n.name in ('precise_home', '_correct_before_home')]
+        commands = []
+        state = dict(homed=True, home_required=False, arm_speed=80, arm_accel=200,
+                     arm_jerk=6, linear_speed=30, linear_accel=150, linear_jerk=3)
+        sensor = SimpleNamespace(monitor=SimpleNamespace(enabled=True, allowed_deg=35),
+            correct_enabled=True, hard_kill_deg=60, hard_kill_latched=False,
+            guard=SimpleNamespace(fault=None), clear_recovered_tilt=lambda: True,
+            snapshot=lambda: {'fresh': True, 'monitor': {'tilt_deg': 40}})
+        ns = {'SENSOR': sensor, 'state': state, 'homing_motion_active': False,
+              'stop_event': SimpleNamespace(clear=lambda: None),
+              '_sync_state_from_arm_robot': lambda: None, 'check_stop': lambda: None,
+              '_gcode': lambda command, **_kw: commands.append(command),
+              '_queue_incremental_recovery': lambda speed: commands.append(('CORRECT', speed)),
+              '_emergency_kill': lambda reason: commands.append(('KILL', reason)),
+              '_precise_home_pass': lambda clear: commands.append('HOME')}
+        exec(compile(ast.Module(body=functions, type_ignores=[]), '<prehome>', 'exec'), ns)
+        ns['precise_home']()
+        self.assertLess(commands.index(('CORRECT', 20)), commands.index('HOME'))
+        self.assertEqual(commands[:2], ['ARM_DANCE_STOP', 'M400'])
+        self.assertFalse(ns['prehome_correction_active'])
+        for change in ('unhomed', 'skipping', 'failed-correction', 'stale'):
+            commands.clear()
+            state['homed'] = change != 'unhomed'
+            sensor.guard.fault = 'skip' if change == 'skipping' else None
+            sensor.clear_recovered_tilt = lambda: change != 'failed-correction'
+            sensor.snapshot = lambda: {'fresh': change != 'stale', 'monitor': {'tilt_deg': 40}}
+            with self.assertRaises(RuntimeError):
+                ns['precise_home']()
+            self.assertNotIn('HOME', commands)
+            self.assertFalse(ns['prehome_correction_active'])
+
     def test_all_home_calls_expose_homing_state_and_clear_it_on_failure(self):
         source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
                         and n.name == 'precise_home')
-        ns = {'homing_motion_active': False}
+        ns = {'homing_motion_active': False, '_correct_before_home': lambda _clear: None}
         def home_pass(_clear):
             self.assertTrue(ns['homing_motion_active'])
             raise RuntimeError('home failed')
@@ -96,7 +130,8 @@ class RecoveryHomeLockTests(unittest.TestCase):
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
                         and n.name == '_request_tilt_correction')
         kills = []
-        namespace = {'home_in_progress': True, '_emergency_kill': kills.append}
+        namespace = {'home_in_progress': True, 'prehome_correction_active': False,
+                     '_emergency_kill': kills.append}
         exec(compile(ast.Module(body=[function], type_ignores=[]), '<home-correction>', 'exec'), namespace)
         namespace['_request_tilt_correction']('tilt during Home')
         self.assertEqual(len(kills), 1)

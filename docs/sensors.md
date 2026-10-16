@@ -98,6 +98,15 @@ active dangerous condition can repeat KILL at most every 250 ms. Ordinary tilt
 KILL retains its persistence timer; the hard angle limit does not wait for it.
 During manual or automatic homing, sustained tilt requests KILL even when the
 selected normal-motion action is Correct; a scoop is not attempted mid-home.
+Before starting either Home path in Correct mode, the host checks fresh valid
+tilt feedback. If already above the configured tilt limit, it drains queued
+motion and runs the existing relative scoop at 25% normal speed, then verifies
+normal tilt before issuing ARM_HOME. This requires a trusted home reference,
+Boundary On, and no skipping/guard or hard-KILL fault. Otherwise Home is refused
+for manual recovery; unknown coordinates are never used for a scoop. A normal
+pose may still start Home to recover its reference. Failure during the pre-home
+correction cancels Home and requests emergency KILL. Hard-angle and vibration
+KILL remain active throughout pre-home correction.
 These software checks require
 fresh healthy feedback and cannot guarantee a stop before damage.
 

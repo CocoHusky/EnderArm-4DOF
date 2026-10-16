@@ -126,6 +126,15 @@ class SensorService:
         if isinstance(recovery, str):
             self.recovery_program = recovery[:80]
         self.correct_enabled = bool(raw.get('correct_enabled', False))
+        # Missing fields in older files keep their previous safe defaults.
+        self.monitor.enabled = raw.get('enabled') is True
+        self.monitor.kill_enabled = raw.get('kill_enabled') is True
+        if self.monitor.kill_enabled:
+            self.correct_enabled = False
+        try:
+            self.guard.configure(raw.get('guard', {}))
+        except (TypeError, ValueError, AttributeError):
+            pass
 
     def _save_config(self):
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -140,6 +149,9 @@ class SensorService:
             "gestures": self.gestures,
             "recovery_program": self.recovery_program,
             "correct_enabled": self.correct_enabled,
+            "enabled": self.monitor.enabled,
+            "kill_enabled": self.monitor.kill_enabled,
+            "guard": dict(self.guard.options),
         }
         tmp = self.config_path + ".tmp"
         with open(tmp, "w") as stream:
@@ -427,6 +439,7 @@ class SensorService:
             raise ValueError('guard options must be an object')
         with self._lock:
             self.guard.configure(options)
+            self._save_config()
         return self.snapshot()
 
     def _update_guard_led(self, link):

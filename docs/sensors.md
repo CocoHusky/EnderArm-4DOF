@@ -62,7 +62,7 @@ broad burst detector, not a calibrated frequency match to a screenshot or proof
 of skipped motor steps. Healthy-sample gaps over 100 ms reset its history.
 
 It sends the existing emergency KILL, including during correction, latches the
-fault, and requires controller recovery/Home. It is off at startup and remains
+fault, and requires controller recovery/Home. It defaults off and remains
 independent of the tilt On/Off switch. Enable it explicitly and Apply protection.
 The live spike count is shown even while disabled. Thresholds need physical
 validation; at roughly 75 samples/s short or high-frequency events may be missed.
@@ -70,7 +70,13 @@ validation; at roughly 75 samples/s short or high-frequency events may be missed
 Calibrate the Triplate while the arm is stationary in its normal mounted pose.
 Set the tilt limit and persistence, choose Correct or KILL, then switch
 protection On. The separate KILL angle defaults to 50° and overrides correction.
-Changes save automatically.
+Changes save automatically to the private data directory's `sensor_config.json`.
+Tilt On/Off, Correct/KILL, limits, calibration, and all applied vibration/impact/Z
+guard settings are restored after app updates, restarts, and machine reboots.
+New installations default Off; older files without saved enable fields remain Off
+until explicitly set. Updates must preserve this file, not disable protection.
+This does not restore a motion queue, pending gestures, or a home reference;
+gesture program execution still requires explicit re-enabling.
 
 Tilt uses a short vector filter. Samples outside 0.75–1.25 g are ignored, so a
 large bump is not treated as a gravity direction. The filter and persistence
@@ -88,7 +94,7 @@ packets between full status frames. The reference board delivered about
 The UI shows measured rate and buffer gaps rather than assuming the target rate.
 
 Start with LED feedback only. Each impact-protection checkbox is separate;
-Apply commits the settings. These options reset OFF when the host restarts.
+Apply commits the settings to the same configuration file, including On/Off.
 
 | Option | Meaning |
 | --- | --- |

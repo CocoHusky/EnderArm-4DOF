@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -33,6 +34,41 @@ def frame(seq=1, swipe="none"):
 
 
 class SensorServiceTests(unittest.TestCase):
+    def test_protection_configuration_survives_restart(self):
+        for enabled, kill, correct in ((True, True, False), (True, False, True),
+                                       (False, False, False)):
+            with self.subTest(enabled=enabled, kill=kill), tempfile.TemporaryDirectory() as td:
+                svc = self.make_service(td)
+                svc.configure_monitor(allowed_deg=35, persistence_s=1, filter_s=.2,
+                                      hard_kill_deg=50, enabled=enabled,
+                                      kill_enabled=kill, correct_enabled=correct)
+                svc.configure_guard({'burst_stop': True, 'burst_count': 6,
+                                     'burst_g': .8, 'burst_window_s': .7,
+                                     'impact_flash': True, 'swipe_colors': True})
+                other = self.make_service(td)
+                self.assertEqual(other.monitor.enabled, enabled)
+                self.assertEqual(other.monitor.kill_enabled, kill)
+                self.assertEqual(other.correct_enabled, correct)
+                self.assertEqual(other.monitor.allowed_deg, 35)
+                self.assertEqual(other.monitor.persistence_s, 1)
+                self.assertEqual(other.hard_kill_deg, 50)
+                self.assertEqual(other.guard.options, svc.guard.options)
+                self.assertFalse(other.swipe_enabled)
+                self.assertIsNone(other.countdown_deadline)
+                other.configure_guard({'burst_stop': False})
+                self.assertFalse(self.make_service(td).guard.options['burst_stop'])
+
+    def test_old_or_invalid_protection_config_does_not_arm_guards(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = td+'/sensor_config.json'
+            for raw in ({}, {'enabled': 'true', 'kill_enabled': 1,
+                             'guard': {'burst_stop': 'true'}}, {'guard': []}):
+                Path(path).write_text(json.dumps(raw))
+                svc = self.make_service(td)
+                self.assertFalse(svc.monitor.enabled)
+                self.assertFalse(svc.monitor.kill_enabled)
+                self.assertFalse(svc.guard.options['burst_stop'])
+
     def test_vibration_burst_kills_without_tilt_monitoring(self):
         with tempfile.TemporaryDirectory() as td:
             svc = self.make_service(td)

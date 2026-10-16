@@ -2158,7 +2158,7 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
         <canvas id="wsYZCanvas" width="720" height="430"></canvas>
       </section>
       <section class="card sliceCard">
-        <div class="sliceHead"><b>3D overview</b><span class="workspaceHint">drag rotate · wheel zoom</span><button id="wsResetView">Reset</button></div>
+        <div class="sliceHead"><b>3D overview</b><span class="workspaceHint">drag rotate · wheel zoom</span><button id="wsFocusView">Focus move</button><button id="wsResetView">Full workspace</button></div>
         <canvas id="workspaceCanvas" width="720" height="430"></canvas>
       </section>
     </section>
@@ -4180,7 +4180,7 @@ function currentWorldTool(){
 }
 
 let workspaceDragging=false,workspaceMoved=false,workspaceLastX=0,workspaceLastY=0;
-let workspaceCam={yaw:-0.72,pitch:0.48,zoom:1.0};
+let workspaceCam={yaw:-0.72,pitch:0.48,zoom:1.0,focus:null,span:null};
 let sliceViews={xy:{zoom:1,pu:0,pv:0},xz:{zoom:1,pu:0,pv:0},yz:{zoom:1,pu:0,pv:0}};
 let sliceTransforms={},workspaceSliceCache=new Map();
 
@@ -4210,7 +4210,14 @@ for(const id of ['worldX','worldY','worldZ'])$(id).addEventListener('change',()=
 
 function wb(){const b=workspaceData.bounds;return{x0:+b.x[0],x1:+b.x[1],y0:+b.y[0],y1:+b.y[1],z0:+b.z[0],z1:+b.z[1]}}
 function clearC(c){const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.fillStyle='#090c10';x.fillRect(0,0,c.width,c.height);return x}
-function marker(ctx,x,y,label,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fill();ctx.fillStyle=color;ctx.font='11px system-ui';ctx.fillText(label,x+8,y-7)}
+function marker(ctx,x,y,label,color){
+  ctx.fillStyle='rgba(9,12,16,.92)';ctx.beginPath();ctx.arc(x,y,10,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();
+  ctx.font='600 12px system-ui';const w=ctx.measureText(label).width;
+  ctx.fillStyle='rgba(9,12,16,.9)';ctx.fillRect(x+10,y-19,w+8,17);
+  ctx.fillStyle=color;ctx.fillText(label,x+14,y-7);
+}
 function line2(ctx,x0,y0,x1,y1,color,w=1){ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke()}
 function spec(mode){
   const b=wb();
@@ -4360,13 +4367,18 @@ function drawSlice(mode){
 }
 function draw3D(){
   if(!workspaceData)return;
-  const c=$('workspaceCanvas'),ctx=clearC(c),b=wb(),cx=(b.x0+b.x1)/2,cy=(b.y0+b.y1)/2,cz=(b.z0+b.z1)/2,span=Math.max(b.x1-b.x0,b.y1-b.y0,b.z1-b.z0,1);
+  const c=$('workspaceCanvas'),ctx=clearC(c),b=wb(),focus=workspaceCam.focus,
+    cx=focus?focus.x:(b.x0+b.x1)/2,cy=focus?focus.y:(b.y0+b.y1)/2,cz=focus?focus.z:(b.z0+b.z1)/2,
+    span=workspaceCam.span||Math.max(b.x1-b.x0,b.y1-b.y0,b.z1-b.z0,1);
   const sc=Math.min(c.width,c.height)*.75/span*workspaceCam.zoom,ca=Math.cos(workspaceCam.yaw),sa=Math.sin(workspaceCam.yaw),cp=Math.cos(workspaceCam.pitch),sp=Math.sin(workspaceCam.pitch);
   const P=(x,y,z)=>{const dx=-(x-cx),dy=y-cy,dz=z-cz,xr=dx*ca-dy*sa,yr=dx*sa+dy*ca;return[c.width/2+xr*sc,c.height/2-(dz*cp-yr*sp)*sc]};
-  ctx.fillStyle='rgba(55,155,215,.20)';const pts=workspaceData.points||[];for(let i=0;i<pts.length;i+=2){const q=P(+pts[i][0],+pts[i][1],+pts[i][2]);ctx.fillRect(q[0],q[1],1.5,1.5)}
+  ctx.fillStyle=focus?'rgba(55,155,215,.12)':'rgba(55,155,215,.20)';const pts=workspaceData.points||[];for(let i=0;i<pts.length;i+=2){const q=P(+pts[i][0],+pts[i][1],+pts[i][2]);if(q[0]>=-2&&q[0]<=c.width+2&&q[1]>=-2&&q[1]<=c.height+2)ctx.fillRect(q[0],q[1],1.5,1.5)}
   if(workspaceData.meta&&workspaceData.meta.linear_enabled){const a=P(0,0,0),b1=P(0,235,0);line2(ctx,a[0],a[1],b1[0],b1[1],'#e8bc59',2)}
   const cur=currentWorldTool();if(cur){const q=P(cur.x,cur.y,cur.z);marker(ctx,q[0],q[1],'current','#eef2f5')}
   const q=P(+$('worldX').value,+$('worldY').value,+$('worldZ').value);marker(ctx,q[0],q[1],'target',worldPlan?'#6fd49b':'#e8bc59');
+  ctx.fillStyle='rgba(9,12,16,.86)';ctx.fillRect(9,9,focus?178:158,36);
+  ctx.fillStyle='#eef2f5';ctx.font='600 11px system-ui';ctx.fillText(focus?'FOCUSED MOVE VIEW':'FULL WORKSPACE',16,24);
+  ctx.fillStyle='#8d98a4';ctx.font='10px system-ui';ctx.fillText('white = current · gold/green = target',16,38);
 }
 function drawWorkspace(){drawSlice('xy');drawSlice('xz');drawSlice('yz');draw3D()}
 
@@ -4392,7 +4404,14 @@ wsC.addEventListener('pointerdown',e=>{workspaceDragging=true;workspaceMoved=fal
 wsC.addEventListener('pointermove',e=>{if(!workspaceDragging)return;const dx=e.clientX-workspaceLastX,dy=e.clientY-workspaceLastY;if(Math.abs(dx)+Math.abs(dy)>2)workspaceMoved=true;workspaceCam.yaw+=dx*.008;workspaceCam.pitch=Math.max(-1.35,Math.min(1.35,workspaceCam.pitch+dy*.008));workspaceLastX=e.clientX;workspaceLastY=e.clientY;draw3D()});
 wsC.addEventListener('pointerup',e=>{workspaceDragging=false;try{wsC.releasePointerCapture(e.pointerId)}catch(_){}});
 wsC.addEventListener('wheel',e=>{e.preventDefault();workspaceCam.zoom=Math.max(.45,Math.min(3.5,workspaceCam.zoom*Math.exp(-e.deltaY*.0012)));draw3D()},{passive:false});
-$('wsResetView').addEventListener('click',()=>{workspaceCam={yaw:-.72,pitch:.48,zoom:1};draw3D()});
+$('wsFocusView').addEventListener('click',()=>{
+  const target={x:+$('worldX').value,y:+$('worldY').value,z:+$('worldZ').value},cur=currentWorldTool();
+  const points=cur?[cur,target]:[target];
+  const focus={x:points.reduce((n,p)=>n+p.x,0)/points.length,y:points.reduce((n,p)=>n+p.y,0)/points.length,z:points.reduce((n,p)=>n+p.z,0)/points.length};
+  const spread=Math.max(80,...points.map(p=>Math.hypot(p.x-focus.x,p.y-focus.y,p.z-focus.z)*2));
+  workspaceCam={...workspaceCam,focus,span:Math.min(260,spread*1.8),zoom:1};draw3D();
+});
+$('wsResetView').addEventListener('click',()=>{workspaceCam={yaw:-.72,pitch:.48,zoom:1,focus:null,span:null};draw3D()});
 
 async function previewWorld(){
   if(!S.homed){$('worldPlanSummary').innerHTML='<span class="bad">Home the robot first.</span>';return null}

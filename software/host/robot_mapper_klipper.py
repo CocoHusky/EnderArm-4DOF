@@ -1956,6 +1956,36 @@ def _find_high_recovery_plan(unit_x, unit_y, radius, minimum_z, rail, seed):
             continue
     raise RuntimeError("no higher recovery point is reachable inside the measured boundary")
 
+def _queue_saved_linkage_recovery(name):
+    """Run a recorded recovery shape using Motor X/Y only.
+
+    The saved route supplies the linkage shape; the live base and rail are
+    deliberately retained so a tilt recovery cannot rotate the base or move
+    the optional rail.  Each saved point is an arrival boundary so the
+    operator-recorded counter-clockwise path is preserved.
+    """
+    points, _defaults=_load_named_program(name)
+    if not points:
+        raise RuntimeError("selected lock-up recovery route is empty")
+
+    fixed_c=float(state["z"])
+    fixed_d=float(state.get("linear_y",0.0))
+    current=(float(state["x"]),float(state["y"]))
+    for index, raw in enumerate(points,1):
+        check_stop()
+        target=_program_point(raw)
+        route=safe_joint_route(current,(float(target["a"]),float(target["b"])))
+        commands=[
+            f"ARM_MOVE_JOINT A={a:.5f} B={b:.5f} C={fixed_c:.5f} D={fixed_d:.5f}"
+            for a,b in route[1:]
+        ]
+        if commands:
+            state["message"]=f"Tilt correction — saved X/Y path {index}/{len(points)}"
+            _gcode("\n".join(commands),timeout=8)
+            _gcode("M400",timeout=180)
+        current=(float(target["a"]),float(target["b"]))
+        state.update(x=current[0],y=current[1],z=fixed_c,linear_y=fixed_d)
+
 def _start_tilt_warning_flash():
     """Flash red irregularly while the automatic correction is in motion."""
     if SENSOR is None:
@@ -2008,6 +2038,13 @@ def _tilt_correction_worker(reason):
                         state["linear_speed"],state["linear_accel"],state["linear_jerk"])
             _gcode("ARM_TUNE ARM_VELOCITY=20 ARM_ACCEL=80 ARM_CORNER=3 "
                    "SLIDE_VELOCITY=15 SLIDE_ACCEL=60 SLIDE_CORNER=2", timeout=5)
+
+            saved_route=str(SENSOR.recovery_program or "").strip()
+            if saved_route:
+                _queue_saved_linkage_recovery(saved_route)
+                state.update(homed=False,home_required=True)
+                state["message"]="Tilt correction complete — press Home before normal motion"
+                return
 
             initial=kinematic_state(state["x"],state["y"],state["z"])["tool"]
             rail=float(state.get("linear_y",0.0))
@@ -2411,7 +2448,7 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
         <div class="muted" style="margin-top:8px">Short motion spikes are filtered. Samples outside 0.75–1.25 g are ignored for tilt.</div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
-      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Optional correction is slow and boundary-on: 5 mm clearance hop, retract toward the base axis, then raise to the highest modeled safe height. The sensor flashes red during recovery. When it finishes, press Home before normal motion.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No saved route selected</option></select><button id="sensorRecoverySave">Save route selection</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. It is separate from a manually saved recovery route.</div></div>
+      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Choose a recorded counter-clockwise X/Y path for this specific lock-up. During correction, Motor Z and the rail stay fixed. With no route selected, the generic inboard-and-up recovery is used.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">Use generic recovery</option></select><button id="sensorRecoverySave">Use selected route</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. Selecting a route does not move the arm.</div></div>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3347,11 +3384,12 @@ function renderSensor(sensor){
   const recoverySelect=$('sensorRecoveryProgram'), recoveryName=sensor.recovery_program||'';
   if(recoverySelect && document.activeElement!==recoverySelect){
     const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
-    recoverySelect.innerHTML='<option value="">No route selected</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
+    recoverySelect.innerHTML='<option value="">Use generic recovery</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
   }
   if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=Boolean(sensor.correct_enabled)
-    ?'Correction ON: confirmed tilt runs a slow Boundary ON recovery, flashes red, then requires Home. KILL must remain OFF.'
-    :(recoveryName?'Saved route selected: '+recoveryName+'. Selection does not move the arm.'
+    ?(recoveryName?'Correction ON: '+recoveryName+' runs X/Y only at the current Motor Z and rail, then requires Home.'
+      :'Correction ON: confirmed tilt runs the generic Boundary ON recovery, flashes red, then requires Home.')
+    :(recoveryName?'Selected route: '+recoveryName+'. It will run only when correction is enabled and tilt is confirmed.'
       :'Tilt correction is OFF. A saved route selection does not move the arm.');
 
   const slider=frame?.slider;
@@ -4215,7 +4253,11 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
     if($('sensorCorrectEnabled').checked && $('sensorKillEnabled').checked){
       throw new Error('Choose either tilt correction or KILL, not both.');
     }
-    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red, moves 5 mm up, retracts toward the base axis inside Boundary ON, then raises to the highest modeled safe height. It stops afterward and requires you to press Home before normal motion. Keep the area clear; this is not a hardware safety interlock.'))return;
+    const recovery=$('sensorRecoveryProgram').value;
+    const recoveryPlan=recovery
+      ?('it will run the saved '+recovery+' Motor X/Y path while holding Motor Z and rail fixed')
+      :('it will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height');
+    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red and '+recoveryPlan+'. It stops afterward and requires you to press Home before normal motion. Keep the area clear; this is not a hardware safety interlock.'))return;
     await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),

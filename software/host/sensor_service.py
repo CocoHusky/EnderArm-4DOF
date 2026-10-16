@@ -46,6 +46,8 @@ class SensorService:
         self.can_run_program = can_run_program or (lambda: (False, "robot callback unavailable"))
         self.run_program = run_program or (lambda name: None)
         self.monitor = TiltMonitor()
+        self.hard_kill_deg = 50.0
+        self.hard_kill_latched = False
         self.guard = SensorGuard()
         self._guard_led = None
         self._feedback_base = 'off'
@@ -83,6 +85,9 @@ class SensorService:
             self.monitor.configure(raw.get("allowed_deg"), raw.get("persistence_s"), raw.get("filter_s"))
         except (TypeError, ValueError):
             pass
+        hard_kill = raw.get('hard_kill_deg', 50.0)
+        if isinstance(hard_kill, (int, float)) and 1 <= hard_kill <= 90:
+            self.hard_kill_deg = float(hard_kill)
         ref = raw.get("reference")
         if isinstance(ref, list) and len(ref) == 3:
             try:
@@ -128,6 +133,7 @@ class SensorService:
             "allowed_deg": self.monitor.allowed_deg,
             "persistence_s": self.monitor.persistence_s,
             "filter_s": self.monitor.filter_s,
+            "hard_kill_deg": self.hard_kill_deg,
             "reference": self.monitor.reference,
             "taps": self.taps,
             "selected_tap": self.selected_tap,
@@ -296,6 +302,8 @@ class SensorService:
                     except Exception as exc:
                         self.countdown_error = 'KILL request failed: ' + str(exc)
             triggered = self.monitor.update(accel_g if len(accel_g) == 3 else [0, 0, 1], healthy=healthy)
+            if self._check_hard_tilt():
+                continue
             if triggered:
                 self._cancel_swipe('confirmed tilt fault', disable=True)
                 if self.monitor.kill_enabled and self.on_kill:
@@ -312,6 +320,24 @@ class SensorService:
             slider = frame.get("slider") or {}
             self._process_gesture(slider, healthy)
             self._countdown_tick(link)
+
+    def _check_hard_tilt(self):
+        angle = self.monitor.last_tilt_deg
+        if self.hard_kill_latched:
+            return True
+        if (not self.monitor.enabled or angle is None or self.monitor.sample_rejected
+                or angle < self.hard_kill_deg):
+            return False
+        self.hard_kill_latched = True
+        self.monitor.fault_latched = True
+        self.monitor.fault_reason = f'tilt {angle:.1f}° reached KILL limit {self.hard_kill_deg:.1f}°'
+        self._cancel_swipe(self.monitor.fault_reason, disable=True)
+        if self.on_kill:
+            try:
+                self.on_kill(self.monitor.fault_reason)
+            except Exception as exc:
+                self.countdown_error = 'KILL request failed: ' + str(exc)
+        return True
 
     def calibrate(self, sample_count=20, timeout_s=2.0):
         samples = []
@@ -342,8 +368,13 @@ class SensorService:
         return {"reference": ref, "samples": len(samples), "max_deviation_g": spread}
 
     def configure_monitor(self, allowed_deg=None, persistence_s=None, filter_s=None, enabled=None,
-                          kill_enabled=None, correct_enabled=None):
+                          kill_enabled=None, correct_enabled=None, hard_kill_deg=None):
         with self._lock:
+            if hard_kill_deg is not None:
+                value = float(hard_kill_deg)
+                if not 1 <= value <= 90:
+                    raise ValueError('KILL angle must be 1–90 degrees')
+                self.hard_kill_deg = value
             self.monitor.configure(allowed_deg, persistence_s, filter_s)
             if enabled is not None:
                 self.monitor.enabled = bool(enabled)
@@ -371,6 +402,7 @@ class SensorService:
         return self.snapshot()
 
     def acknowledge_fault(self):
+        self.hard_kill_latched = False
         self.monitor.acknowledge()
         self.guard.acknowledge()
         return self.snapshot()
@@ -473,6 +505,7 @@ class SensorService:
             except Exception:
                 accel_g = None
         mon = self.monitor.snapshot()
+        mon['hard_kill_deg'] = self.hard_kill_deg
         if accel_g is None:
             mon["tilt_deg"] = None
         with self._lock:

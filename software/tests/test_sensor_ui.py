@@ -13,7 +13,7 @@ class SensorUiTests(unittest.TestCase):
 const fs=require('fs'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const start=source.indexOf('const sensorProtectionInputs=');
-const end=source.indexOf("$('sensorRecoverySave').addEventListener",start);
+const end=source.indexOf("$('sensorAck').addEventListener",start);
 const elements={};
 const $=id=>elements[id]??={value:'',checked:false,disabled:false,dataset:{},
   textContent:'',valid:true,checkValidity(){return this.valid},addEventListener(){}};
@@ -27,6 +27,7 @@ const api=async(path,body)=>{
 const renderSensor=value=>{rendered=value};
 const save=new Function('$','api','renderSensor',source.slice(start,end)+';return saveTiltProtection;')($,api,renderSensor);
 $('sensorTiltLimit').value='15';$('sensorPersistence').value='.75';$('sensorTiltFilter').value='.25';
+$('sensorHardKill').value='50';
 (async()=>{
   for(const [enabled,action,kill,correct] of [
     [true,'kill',true,false],[true,'correct',false,true],
@@ -38,6 +39,7 @@ $('sensorTiltLimit').value='15';$('sensorPersistence').value='.75';$('sensorTilt
     assert.equal(payload.enabled,enabled);assert.equal(payload.kill_enabled,kill);
     assert.equal(payload.correct_enabled,correct);assert.equal(payload.allowed_deg,15);
     assert.equal(payload.persistence_s,.75);assert.equal(payload.filter_s,.25);
+    assert.equal(payload.hard_kill_deg,50);
     assert.equal($('sensorProtection').dataset.dirty,undefined);
     assert.equal($('sensorMonitorEnabled').disabled,false);
   }

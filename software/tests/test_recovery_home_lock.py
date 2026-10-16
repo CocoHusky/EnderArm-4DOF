@@ -53,6 +53,7 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
             recovery_program='Known recovery'),
         '_start_tilt_warning_flash': lambda: (None, None),
         '_queue_saved_linkage_recovery': queue_saved,
+        '_queue_incremental_recovery': lambda: queue_saved('Green arc'),
         '_gcode': lambda command, **_kwargs: commands.append(command) if commands is not None else None,
         '_emergency_kill': lambda reason: state.update(homed=False, home_required=True, kill_reason=reason),
         'check_stop': lambda: None,

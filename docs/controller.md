@@ -55,20 +55,22 @@ fixed throughout recovery. KILL shuts Klipper down and requires Home; it
 cannot be followed directly by motion. If stopping or correction fails,
 the controller is emergency-stopped and Home is required.
 
-With no selected recovery route, correction runs
-slowly with Boundary ON: a 5 mm world-Z hop, the smallest modeled inboard
-radius at the current heading, then the highest modeled safe world Z at that
-radius.
+Correction follows the operator-recorded green side-view arc in
+`software/host/recovery_path.py`, in that direction only, with no initial hop.
+Each tool step is at most 2 mm. The host waits for settled, fresh accelerometer
+readings after each step and stops as soon as tilt stays within the limit.
+The path stays inside the measured boundary and above world Z −135.6 mm.
+It refuses a starting position more than 5 mm from the recorded arc rather
+than inventing a joining movement. Motor Z and rail remain fixed.
 
-For a known linkage lock-up, record a saved route with the desired
-counter-clockwise Motor X/Y shape and select it under **Correction route**.
-That route is checked against Boundary ON and executed as separate arrival
-stages, while the live Motor Z and rail positions are held fixed; its saved
-Motor Z and rail values are intentionally ignored. This lets a route express
-an `out → in → up → out` linkage recovery without rotating the base. It
-refuses to run without a valid home reference. A running route is stopped
-before correction begins. A recovery that reaches every
-stage leaves the existing home reference valid and normal motion available. If
+The separate KILL angle defaults to 50°. While protection is On, a valid
+filtered reading at that limit emergency-stops even during correction or
+after the ordinary tilt fault has latched. It does not wait for the ordinary
+tilt persistence timer. Turning protection Off disables both tilt actions.
+
+Recovery refuses to run without a valid home reference. A running route is
+stopped before correction begins. Successful correction leaves the existing
+home reference valid and normal motion available. If
 it is stopped or errors after starting, the reference is treated as uncertain:
 normal motion is locked until the operator explicitly presses Home, and
 automatic homing cannot clear that lock. This is a modeled recovery path, not a

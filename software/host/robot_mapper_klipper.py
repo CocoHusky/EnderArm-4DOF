@@ -21,6 +21,7 @@ from arm_camera import CAMERA
 from arm_remote import start_remote_access
 from features import FEATURES, DATA_DIR, SOURCE_DIR
 from workspace_map import sample_workspace
+from recovery_path import TABLE_Z_MIN, recovery_steps
 from boundary_model import BOUNDARY_YIELD, build_boundary_poly
 
 # One authoritative geometry source.  robot_mapper.py owns controller I/O and
@@ -1929,6 +1930,75 @@ correction_thread = None
 correction_thread_lock = threading.Lock()
 correction_cancel_event = threading.Event()
 
+def _settled_recovery_tilt():
+    """Require new, gravity-valid samples after each physical arrival."""
+    started=time.monotonic()
+    deadline=started+max(3.0,SENSOR.monitor.filter_s*4+SENSOR.monitor.persistence_s+1)
+    first_seq=(SENSOR.snapshot().get("frame") or {}).get("seq")
+    normal_since=None
+    while time.monotonic()<deadline:
+        check_stop()
+        sample=SENSOR.snapshot()
+        mon=sample.get("monitor",{})
+        frame=sample.get("frame") or {}
+        angle=mon.get("tilt_deg")
+        if (sample.get("fresh") and frame.get("seq")!=first_seq and angle is not None
+                and not mon.get("sample_rejected")
+                and time.monotonic()-started>=max(.2,SENSOR.monitor.filter_s*3)):
+            if angle>SENSOR.monitor.allowed_deg:
+                return float(angle)
+            if normal_since is None:
+                normal_since=time.monotonic()
+            if time.monotonic()-normal_since>=SENSOR.monitor.persistence_s:
+                return float(angle)
+        else:
+            normal_since=None
+        time.sleep(.025)
+    raise RuntimeError("No settled accelerometer reading after correction step")
+
+def _queue_incremental_recovery():
+    """Follow the taught green arc in small steps; never rotate the base."""
+    tilt=_settled_recovery_tilt()
+    if tilt<=SENSOR.monitor.allowed_deg:
+        return
+    fixed_c=float(state["z"])
+    rail=float(state.get("linear_y",0.0))
+    tool=kinematic_state(state["x"],state["y"],fixed_c)["tool"]
+    radius=math.hypot(tool["x"],tool["y"])
+    if radius<1:
+        raise RuntimeError("Recovery heading is undefined near the base axis")
+    ux,uy=tool["x"]/radius,tool["y"]/radius
+    deadline=time.monotonic()+180
+    for index,(radius,z) in enumerate(recovery_steps(radius,float(tool["z"])),1):
+        check_stop()
+        if index>200 or time.monotonic()>deadline:
+            raise RuntimeError("Incremental correction exceeded its travel/time limit")
+        seed={"a":state["x"],"b":state["y"],"c":fixed_c,"d":rail}
+        plan=plan_world_target(ux*radius,rail+uy*radius,z,rail,seed=seed)
+        a0,b0=float(state["x"]),float(state["y"])
+        a1,b1=float(plan["A"]),float(plan["B"])
+        # Do not let the corridor planner substitute a different rotation.
+        _a,_b,clipped=clip_xy_path(a0,b0,a1,b1)
+        if clipped or max(abs(a1-a0),abs(b1-b0))>2:
+            raise RuntimeError("Recovery step cannot follow the taught arc inside the boundary")
+        for n in range(21):
+            q=n/20
+            p=kinematic_state(a0+(a1-a0)*q,b0+(b1-b0)*q,fixed_c)["tool"]
+            if p["z"]<TABLE_Z_MIN-1e-4:
+                raise RuntimeError("Recovery step would cross the table Z limit")
+        state["message"]=f"X/Y correction · step {index} · tilt {tilt:.1f}°"
+        _gcode(f"ARM_MOVE_JOINT A={a1:.5f} B={b1:.5f} C={fixed_c:.5f} D={rail:.5f}",timeout=8)
+        _gcode("M400",timeout=15)
+        check_stop()
+        _sync_state_from_arm_robot()
+        measured=_settled_recovery_tilt()
+        if measured<=SENSOR.monitor.allowed_deg:
+            return
+        if measured>tilt+5:
+            raise RuntimeError("Tilt worsened during incremental correction")
+        tilt=measured
+    raise RuntimeError("Recorded recovery arc ended before tilt was corrected")
+
 def _queue_recovery_stage(plan, label):
     """Recover with Motor X/Y only, preserving the live base and rail."""
     check_stop()
@@ -2064,36 +2134,7 @@ def _tilt_correction_worker(reason):
             _gcode("ARM_TUNE ARM_VELOCITY=20 ARM_ACCEL=80 ARM_CORNER=3 "
                    "SLIDE_VELOCITY=15 SLIDE_ACCEL=60 SLIDE_CORNER=2", timeout=5)
 
-            saved_route=str(SENSOR.recovery_program or "").strip()
-            if saved_route:
-                _queue_saved_linkage_recovery(saved_route)
-                check_stop()
-                state.update(homed=True,home_required=False)
-                state["message"]="Tilt correction complete — normal motion available"
-                return
-
-            initial=kinematic_state(state["x"],state["y"],state["z"])["tool"]
-            rail=float(state.get("linear_y",0.0))
-            x=float(initial["x"])
-            y=float(initial["y"])+rail
-            z=float(initial["z"])
-            radius=math.hypot(x,y-rail)
-            if radius <= 1.0:
-                raise RuntimeError("current tool heading is too close to the base axis for correction")
-            unit_x=x/radius
-            unit_y=(y-rail)/radius
-
-            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":rail}
-            hop=_recovery_plan_at_radius(unit_x,unit_y,radius,z+5.0,rail,seed)
-            _queue_recovery_stage(hop,"5 mm clearance hop")
-
-            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
-            inboard=_find_inboard_recovery_plan(unit_x,unit_y,radius,z+5.0,rail,seed)
-            _queue_recovery_stage(inboard,"retracting toward the base axis")
-
-            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
-            raised=_find_high_recovery_plan(unit_x,unit_y,float(inboard["radius_mm"]),z+5.0,rail,seed)
-            _queue_recovery_stage(raised,"raising to the highest modeled safe height")
+            _queue_incremental_recovery()
             check_stop()
             state.update(homed=True,home_required=False)
             state["message"]="Tilt correction complete — normal motion available"
@@ -2525,13 +2566,13 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
       <div class="cardTitle"><h2>Tilt protection</h2><span id="sensorFaultBadge" class="badge">NOT CALIBRATED</span></div>
       <table class="metricTable"><tbody><tr><td>Tilt</td><td id="sensorTilt">—</td></tr></tbody></table>
       <div id="sensorProtection" class="group">
-        <div class="fieldrow"><label>Tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Action <select id="sensorTiltAction"><option value="correct">Correct</option><option value="kill" selected>KILL</option></select></label><label class="sensorToggle"><input id="sensorMonitorEnabled" type="checkbox" role="switch" aria-label="Tilt protection"><span id="sensorEnabledLabel">Off</span></label></div>
+<div class="fieldrow"><label>Tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>KILL ° <input id="sensorHardKill" type="number" min="1" max="90" step="1" value="50"></label><label>Action <select id="sensorTiltAction"><option value="correct">Correct</option><option value="kill" selected>KILL</option></select></label><label class="sensorToggle"><input id="sensorMonitorEnabled" type="checkbox" role="switch" aria-label="Tilt protection"><span id="sensorEnabledLabel">Off</span></label></div>
         <div id="sensorSaveStatus" class="muted" role="status" aria-live="polite"></div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
       <button id="sensorAck" hidden>Clear fault</button>
       <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div></details>
-      <details><summary>Correction route</summary><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">Use generic recovery</option></select><button id="sensorRecoverySave">Save route</button></div><div id="sensorRecoveryStatus" class="muted">Default: inboard and up.</div></details>
+      <details><summary>Correction path</summary><div class="muted">Green arc · 2 mm steps · Z stays above −135.6 mm.</div></details>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3457,6 +3498,7 @@ function renderSensor(sensor){
   if(document.activeElement!==$('sensorTiltLimit'))$('sensorTiltLimit').value=Number(mon.allowed_deg??15).toFixed(1);
   if(document.activeElement!==$('sensorPersistence'))$('sensorPersistence').value=Number(mon.persistence_s??.75).toFixed(2);
   if(document.activeElement!==$('sensorTiltFilter'))$('sensorTiltFilter').value=Number(mon.filter_s??.25).toFixed(2);
+  if(document.activeElement!==$('sensorHardKill'))$('sensorHardKill').value=Number(mon.hard_kill_deg??50).toFixed(1);
   $('sensorMonitorEnabled').checked=Boolean(mon.enabled);
   $('sensorEnabledLabel').textContent=mon.enabled?'On':'Off';
   if(mon.enabled)$('sensorTiltAction').value=sensor.correct_enabled?'correct':'kill';
@@ -4336,7 +4378,7 @@ $('guardApply').addEventListener('click',async()=>{
 $('sensorCalibrate').addEventListener('click',async()=>{
   try{await sensorCommand('/sensor_calibrate',{})}catch(e){alert(e.message)}
 });
-const sensorProtectionInputs=['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorMonitorEnabled','sensorTiltAction'];
+const sensorProtectionInputs=['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorHardKill','sensorMonitorEnabled','sensorTiltAction'];
 for(const id of sensorProtectionInputs){
   $(id).addEventListener('input',()=>{$('sensorProtection').dataset.dirty='1'});
   $(id).addEventListener('change',saveTiltProtection);
@@ -4355,6 +4397,7 @@ async function saveTiltProtection(){
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),
       filter_s:Number($('sensorTiltFilter').value),
+      hard_kill_deg:Number($('sensorHardKill').value),
       enabled,
       kill_enabled:enabled&&action==='kill',
       correct_enabled:enabled&&action==='correct'
@@ -4368,9 +4411,6 @@ async function saveTiltProtection(){
     status.textContent='Not saved: '+e.message;
   }finally{sensorProtectionInputs.forEach(id=>{$(id).disabled=false})}
 }
-$('sensorRecoverySave').addEventListener('click',async()=>{
-  try{await sensorCommand('/sensor_recovery',{program:$('sensorRecoveryProgram').value})}catch(e){alert(e.message)}
-});
 $('sensorAck').addEventListener('click',async()=>{try{await sensorCommand('/sensor_ack',{})}catch(e){alert(e.message)}});
 $('sensorLedSet').addEventListener('click',async()=>{try{await sensorCommand('/sensor_led',{color:$('sensorLedColor').value})}catch(e){alert(e.message)}});
 $('sensorModeSet').addEventListener('click',async()=>{try{await sensorCommand('/sensor_mode',{mode:$('sensorMode').value})}catch(e){alert(e.message)}});
@@ -4888,6 +4928,7 @@ class Handler(BaseHTTPRequestHandler):
                         allowed_deg=body.get("allowed_deg"),
                         persistence_s=body.get("persistence_s"),
                         filter_s=body.get("filter_s"),
+                        hard_kill_deg=body.get("hard_kill_deg"),
                         enabled=body.get("enabled"),
                         kill_enabled=body.get("kill_enabled"),
                         correct_enabled=body.get("correct_enabled"),

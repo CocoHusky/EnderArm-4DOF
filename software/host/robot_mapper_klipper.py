@@ -2264,6 +2264,11 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
 #sensorTapRows label,#sensorTapRows b{font-size:13px!important;font-weight:500!important;min-width:0}
 #sensorTapRows select{min-width:0;width:100%}
 #sensorAck{align-self:flex-start}
+#sensorMonitorEnabled{appearance:none!important;width:34px!important;height:20px!important;border:1px solid #627080!important;border-radius:12px!important;background:#35404c!important;position:relative;cursor:pointer}
+#sensorMonitorEnabled:before{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:white;top:2px;left:2px;transition:transform .12s}
+#sensorMonitorEnabled:checked{background:#23608d!important;border-color:#52a9e8!important}
+#sensorMonitorEnabled:checked:before{transform:translateX(14px)}
+#sensorSaveStatus:empty{display:none}
 #sensorPanel [hidden]{display:none!important}
 @media(max-width:850px){#sensorPanel{grid-template-columns:minmax(0,1fr)}#sensorPanel .debugCard:nth-child(n){grid-column:1;grid-row:auto}#sensorPanel .debugCard:nth-child(2){order:-2}#sensorPanel .debugCard:nth-child(4){order:-1}#sensorTapRows .fieldrow{grid-template-columns:100px minmax(90px,1fr) 90px auto}}
 </style>
@@ -2486,14 +2491,14 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
     <section class="card debugCard">
       <div class="cardTitle"><h2>Tilt protection</h2><span id="sensorFaultBadge" class="badge">NOT CALIBRATED</span></div>
       <table class="metricTable"><tbody><tr><td>Tilt</td><td id="sensorTilt">—</td></tr></tbody></table>
-      <div class="group" style="margin-top:10px">
-        <div class="fieldrow"><label>Allowed tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div>
-        <div class="toolbar" style="margin-top:10px"><label class="sensorToggle"><input id="sensorMonitorEnabled" type="checkbox">Monitor</label><label class="sensorToggle"><input id="sensorKillEnabled" type="checkbox">KILL on tilt</label><label class="sensorToggle"><input id="sensorCorrectEnabled" type="checkbox">Auto-correct</label><button id="sensorMonitorApply" class="primary" disabled>Save</button></div>
+      <div id="sensorProtection" class="group">
+        <div class="fieldrow"><label>Tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Action <select id="sensorTiltAction"><option value="correct">Correct</option><option value="kill" selected>KILL</option></select></label><label class="sensorToggle"><input id="sensorMonitorEnabled" type="checkbox" role="switch" aria-label="Tilt protection"><span id="sensorEnabledLabel">Off</span></label></div>
+        <div id="sensorSaveStatus" class="muted" role="status" aria-live="polite"></div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
       <button id="sensorAck" hidden>Clear fault</button>
-      <details><summary>Calibration</summary><p class="muted">Keep the plate still in its normal position.</p><button id="sensorCalibrate">Calibrate</button></details>
-      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Choose a recorded counter-clockwise X/Y path for this specific lock-up. During correction, Motor Z and the rail stay fixed. With no route selected, the generic inboard-and-up recovery is used.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">Use generic recovery</option></select><button id="sensorRecoverySave">Use selected route</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. Selecting a route does not move the arm.</div></div>
+      <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div></details>
+      <details><summary>Correction route</summary><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">Use generic recovery</option></select><button id="sensorRecoverySave">Save route</button></div><div id="sensorRecoveryStatus" class="muted">Default: inboard and up.</div></details>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3415,34 +3420,30 @@ function renderSensor(sensor){
 
   const mon=sensor.monitor||{},tilt=fresh&&mon.tilt_deg!=null?Number(mon.tilt_deg):null;
   $('sensorTilt').textContent=tilt==null?'—':tilt.toFixed(2)+'°';
-  if(!$('sensorMonitorApply').dataset.dirty){
+  if(!$('sensorProtection').dataset.dirty){
   if(document.activeElement!==$('sensorTiltLimit'))$('sensorTiltLimit').value=Number(mon.allowed_deg??15).toFixed(1);
   if(document.activeElement!==$('sensorPersistence'))$('sensorPersistence').value=Number(mon.persistence_s??.75).toFixed(2);
   if(document.activeElement!==$('sensorTiltFilter'))$('sensorTiltFilter').value=Number(mon.filter_s??.25).toFixed(2);
   $('sensorMonitorEnabled').checked=Boolean(mon.enabled);
-  $('sensorKillEnabled').checked=Boolean(mon.kill_enabled);
-  $('sensorCorrectEnabled').checked=Boolean(sensor.correct_enabled);
+  $('sensorEnabledLabel').textContent=mon.enabled?'On':'Off';
+  if(mon.enabled)$('sensorTiltAction').value=sensor.correct_enabled?'correct':'kill';
   }
   const fault=$('sensorFaultBadge');
   $('sensorAck').hidden=!mon.fault_latched&&!guard.fault;
-  $('sensorMonitorApply').disabled=!$('sensorMonitorApply').dataset.dirty;
   if(mon.fault_latched){fault.textContent='FAULT LATCHED';fault.className='badge bad'}
   else if(!mon.calibrated){fault.textContent='NOT CALIBRATED';fault.className='badge'}
   else if(mon.enabled){fault.textContent='MONITORING';fault.className='badge good'}
   else{fault.textContent='MONITORING OFF';fault.className='badge warn'}
   $('sensorFaultReason').textContent=mon.fault_reason||(!mon.enabled
-    ?'Tilt monitoring is OFF. Enable Monitor tilt and save monitoring to detect faults.'
-    :(!mon.kill_enabled&&!sensor.correct_enabled?'Monitoring only. KILL and auto-correction are OFF.':'No sensor fault.'));
+    ?'Protection off.'
+    :(sensor.correct_enabled?'On · Correct':(mon.kill_enabled?'On · KILL':'Monitoring only.')));
   const recoverySelect=$('sensorRecoveryProgram'), recoveryName=sensor.recovery_program||'';
   if(recoverySelect && document.activeElement!==recoverySelect){
     const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
     recoverySelect.innerHTML='<option value="">Use generic recovery</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
   }
-  if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=Boolean(sensor.correct_enabled)
-    ?(recoveryName?'Correction ON: '+recoveryName+' runs X/Y only at the current Motor Z and rail. Home is required only if recovery does not finish.'
-      :'Correction ON: confirmed tilt runs the generic Boundary ON recovery and flashes red. Home is required only if recovery does not finish.')
-    :(recoveryName?'Selected route: '+recoveryName+'. It will run only when correction is enabled and tilt is confirmed.'
-      :'Tilt correction is OFF. A saved route selection does not move the arm.');
+  if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=recoveryName
+    ?recoveryName+' · Motor X/Y only.' : 'Default: inboard and up.';
 
   const slider=frame?.slider;
   $('sensorSliderPos').textContent=slider?((Number(slider.position)/10).toFixed(1)+'%'):'—';
@@ -4302,34 +4303,38 @@ $('guardApply').addEventListener('click',async()=>{
 $('sensorCalibrate').addEventListener('click',async()=>{
   try{await sensorCommand('/sensor_calibrate',{})}catch(e){alert(e.message)}
 });
-for(const id of ['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorMonitorEnabled','sensorKillEnabled','sensorCorrectEnabled'])$(id).addEventListener('input',()=>{
-  $('sensorMonitorApply').dataset.dirty='1';
-  $('sensorMonitorApply').textContent='Save';
-  $('sensorMonitorApply').disabled=false;
-});
-$('sensorMonitorApply').addEventListener('click',async()=>{
+const sensorProtectionInputs=['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorMonitorEnabled','sensorTiltAction'];
+for(const id of sensorProtectionInputs){
+  $(id).addEventListener('input',()=>{$('sensorProtection').dataset.dirty='1'});
+  $(id).addEventListener('change',saveTiltProtection);
+}
+async function saveTiltProtection(){
+  const status=$('sensorSaveStatus');
+  if(sensorProtectionInputs.some(id=>!$(id).checkValidity())){
+    status.textContent='Enter valid tilt and timing values.';
+    return;
+  }
+  const enabled=$('sensorMonitorEnabled').checked,action=$('sensorTiltAction').value;
+  sensorProtectionInputs.forEach(id=>{$(id).disabled=true});
+  status.textContent='Saving…';
   try{
-    if($('sensorCorrectEnabled').checked && $('sensorKillEnabled').checked){
-      throw new Error('Choose either tilt correction or KILL, not both.');
-    }
-    const recovery=$('sensorRecoveryProgram').value;
-    const recoveryPlan=recovery
-      ?('it will run the saved '+recovery+' Motor X/Y path while holding Motor Z and rail fixed')
-      :('it will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height');
-    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red and '+recoveryPlan+'. Normal motion remains available only after every recovery stage completes; an interrupted or failed recovery requires Home. Keep the area clear; this is not a hardware safety interlock.'))return;
-    const result=await sensorCommand('/sensor_monitor',{
+    const result=await api('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),
       filter_s:Number($('sensorTiltFilter').value),
-      enabled:$('sensorMonitorEnabled').checked,
-      kill_enabled:$('sensorKillEnabled').checked,
-      correct_enabled:$('sensorCorrectEnabled').checked
+      enabled,
+      kill_enabled:enabled&&action==='kill',
+      correct_enabled:enabled&&action==='correct'
     });
-    delete $('sensorMonitorApply').dataset.dirty;
-    $('sensorMonitorApply').textContent='Save';
+    delete $('sensorProtection').dataset.dirty;
     renderSensor(result.sensor||result);
-  }catch(e){alert(e.message)}
-});
+    status.textContent='';
+  }catch(e){
+    delete $('sensorProtection').dataset.dirty;
+    try{renderSensor(await api('/sensor'))}catch(_){}
+    status.textContent='Not saved: '+e.message;
+  }finally{sensorProtectionInputs.forEach(id=>{$(id).disabled=false})}
+}
 $('sensorRecoverySave').addEventListener('click',async()=>{
   try{await sensorCommand('/sensor_recovery',{program:$('sensorRecoveryProgram').value})}catch(e){alert(e.message)}
 });

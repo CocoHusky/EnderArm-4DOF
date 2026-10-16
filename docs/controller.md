@@ -161,7 +161,7 @@ Physically validate slider direction and response before arming robot motion.
 Sensors → **Impact & Z protection** offers independent checkboxes for impact
 KILL, impact red flashing, absolute-Z KILL, Z yellow feedback, and swipe colors.
 Choose settings and Apply; KILL options require confirmation. All these options
-reset OFF when the service restarts. Acknowledge clears the sensor latch, not
+persist in `sensor_config.json` across service restarts. Acknowledge clears the sensor latch, not
 Klipper's emergency-stop state; recover the controller and rehome separately.
 Impact is the vector change between 20 Hz samples (default 1.1 g), not a force
 measurement. Z is absolute board-axis acceleration (default |Z| ≥ 0.3 g for

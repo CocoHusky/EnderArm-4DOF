@@ -88,6 +88,7 @@ except BlockingIOError as exc:
 lock = threading.Lock()
 home_request_lock = threading.Lock()
 home_in_progress = False
+homing_motion_active = False
 stop_event = threading.Event()
 _axes_registered = False
 ROBOT_CORNER_VEL = 6.0
@@ -1115,6 +1116,14 @@ def fine_home():
     state.update(x=ox,y=oy,z=oz,homed=True,home_x_counts=ox,home_y_counts=oy,home_z_counts=oz)
 
 def precise_home(clear_stop=True):
+    global homing_motion_active
+    homing_motion_active=True
+    try:
+        return _precise_home_pass(clear_stop)
+    finally:
+        homing_motion_active=False
+
+def _precise_home_pass(clear_stop=True):
     """Original home definition executed locally by Klipper.
 
     Physical home remains the original page convention:
@@ -2212,8 +2221,8 @@ def _tilt_correction_worker(reason):
 def _request_tilt_correction(reason):
     """Start at most one optional correction worker after a confirmed fault."""
     global correction_thread
-    if home_in_progress:
-        # Home establishes the reference; verify and clear tilt afterward.
+    if home_in_progress or homing_motion_active:
+        _emergency_kill("confirmed tilt during homing; scoop correction is unavailable")
         return
     with correction_thread_lock:
         if correction_thread and correction_thread.is_alive():
@@ -5607,6 +5616,7 @@ if __name__=="__main__":
             on_correct=_request_tilt_correction,
             can_run_program=_sensor_can_run_program,
             run_program=_sensor_run_program,
+            is_homing=lambda:home_in_progress or homing_motion_active,
         )
         SENSOR.start()
     try:

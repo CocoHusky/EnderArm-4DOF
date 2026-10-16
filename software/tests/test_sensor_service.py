@@ -34,6 +34,67 @@ def frame(seq=1, swipe="none"):
 
 
 class SensorServiceTests(unittest.TestCase):
+    def test_latched_fault_does_not_suppress_new_vibration_kill(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc = self.make_service(td)
+            svc.guard.configure({'burst_stop': True})
+            svc.guard.fault = 'previous burst before Home'
+            calls = []
+            svc.on_kill = calls.append
+            samples = iter(([0, 0, 1000], [1500, 0, 1000],
+                            [-1500, 0, 1000], [1500, 0, 1000]))
+            clock = [0.0]
+            class Stop:
+                def wait(self, _timeout):
+                    try:
+                        accel = next(samples)
+                    except StopIteration:
+                        return True
+                    clock[0] += .05
+                    svc.transport.frame['seq'] += 1
+                    svc.transport.frame['accel_mg'] = accel
+                    return False
+            svc._stop = Stop()
+            with patch('sensor_guard.time.monotonic', lambda: clock[0]):
+                svc._run()
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(svc.guard.fault, 'previous burst before Home')
+
+    def test_latched_hard_and_persistent_tilt_repeat_kill_without_flooding(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc = self.make_service(td)
+            svc.configure_monitor(enabled=True, kill_enabled=True)
+            svc.hard_kill_latched = True
+            svc.monitor.fault_latched = True
+            svc.monitor.last_tilt_deg = 55
+            calls = []
+            svc.on_kill = calls.append
+            clock = [0.0]
+            with patch('sensor_guard.time.monotonic', lambda: clock[0]):
+                svc._check_hard_tilt()
+                clock[0] = .1
+                svc._check_hard_tilt()
+                self.assertEqual(len(calls), 1)
+                clock[0] = .3
+                svc._check_hard_tilt()
+                self.assertEqual(len(calls), 2)
+                svc.monitor.last_tilt_deg = 30
+                svc._check_tilt_kill()
+                clock[0] = 1.1
+                svc._check_tilt_kill()
+                self.assertEqual(len(calls), 3)
+                svc.monitor.sample_rejected = False
+                svc.monitor.kill_enabled = False
+                svc.is_homing = lambda: True
+                svc._check_tilt_kill()
+                clock[0] = 3
+                svc._check_tilt_kill()
+                self.assertEqual(len(calls), 4)
+                svc.monitor.sample_rejected = True
+                clock[0] = 4
+                svc._check_tilt_kill()
+                self.assertEqual(len(calls), 4)
+
     def test_protection_configuration_survives_restart(self):
         for enabled, kill, correct in ((True, True, False), (True, False, True),
                                        (False, False, False)):

@@ -92,6 +92,14 @@ latched, even if the controller reports homed. Tilt correction alone does not
 clear a suspected-skipping fault.
 Guard faults also persist across app restarts; restarting the app does not
 bypass the motion block. Fault persistence happens after the KILL request.
+Enabled vibration/impact/Z and tilt KILL checks also run during Home and all
+other motion. A historical latch does not suppress a new stop request: an
+active dangerous condition can repeat KILL at most every 250 ms. Ordinary tilt
+KILL retains its persistence timer; the hard angle limit does not wait for it.
+During manual or automatic homing, sustained tilt requests KILL even when the
+selected normal-motion action is Correct; a scoop is not attempted mid-home.
+These software checks require
+fresh healthy feedback and cannot guarantee a stop before damage.
 
 The live X/Y/Z graph receives every serial sample through a buffered stream.
 Firmware 0.4.0 targets a 10 ms acquisition interval, with compact acceleration

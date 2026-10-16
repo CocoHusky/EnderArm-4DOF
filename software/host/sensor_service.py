@@ -37,17 +37,21 @@ class SensorService:
         on_correct=None,
         can_run_program=None,
         run_program=None,
+        is_homing=None,
     ):
         self.config_path = str(config_path)
         self.transport = SensorSerial(port, 115200, stale_after=0.75)
         self.swipe_feature = bool(swipe_feature)
         self.on_kill = on_kill
         self.on_correct = on_correct
+        self.is_homing = is_homing or (lambda: False)
         self.can_run_program = can_run_program or (lambda: (False, "robot callback unavailable"))
         self.run_program = run_program or (lambda name: None)
         self.monitor = TiltMonitor()
         self.hard_kill_deg = 50.0
         self.hard_kill_latched = False
+        self._last_kill_at = None
+        self._kill_tilt_since = None
         self.guard = SensorGuard()
         self._guard_led = None
         self._feedback_base = 'off'
@@ -292,6 +296,7 @@ class SensorService:
 
             frame = link.get("frame")
             if not link.get("fresh") or not isinstance(frame, dict):
+                self._kill_tilt_since = None
                 self._last_gesture_id = None
                 self.monitor.update([0, 0, 1], healthy=False)
                 self._countdown_tick(link)
@@ -310,13 +315,10 @@ class SensorService:
             healthy = self._frame_healthy(link) and len(accel_g) == 3
             accel_healthy = bool(link.get('fresh') and frame.get('health', {}).get('accel') and len(accel_g) == 3)
             reason = self.guard.update(accel_g, healthy=accel_healthy)
+            if self.guard.active_reason:
+                self._dispatch_sensor_kill(self.guard.active_reason)
             if reason:
                 self._cancel_swipe(reason, disable=True)
-                if self.on_kill:
-                    try:
-                        self.on_kill(reason)
-                    except Exception as exc:
-                        self.countdown_error = 'KILL request failed: ' + str(exc)
                 # Never put disk I/O ahead of the emergency stop request.
                 try:
                     with self._lock:
@@ -326,13 +328,11 @@ class SensorService:
             triggered = self.monitor.update(accel_g if len(accel_g) == 3 else [0, 0, 1], healthy=healthy)
             if self._check_hard_tilt():
                 continue
+            self._check_tilt_kill()
             if triggered:
                 self._cancel_swipe('confirmed tilt fault', disable=True)
                 if self.monitor.kill_enabled and self.on_kill:
-                    try:
-                        self.on_kill(self.monitor.fault_reason)
-                    except Exception:
-                        pass
+                    self._dispatch_sensor_kill(self.monitor.fault_reason)
                 elif self.correct_enabled and not self.guard.fault and self.on_correct:
                     try:
                         self.on_correct(self.monitor.fault_reason)
@@ -343,22 +343,40 @@ class SensorService:
             self._process_gesture(slider, healthy)
             self._countdown_tick(link)
 
+    def _dispatch_sensor_kill(self, reason):
+        """Fault history must never disable a fresh stop during recovery/Home."""
+        now = time.monotonic()
+        if self._last_kill_at is not None and now-self._last_kill_at < .25:
+            return
+        self._last_kill_at = now
+        self._cancel_swipe(reason, disable=True)
+        if self.on_kill:
+            try:
+                self.on_kill(reason)
+            except Exception as exc:
+                self.countdown_error = 'KILL request failed: ' + str(exc)
+
+    def _check_tilt_kill(self):
+        angle = self.monitor.last_tilt_deg
+        if (not self.monitor.enabled or not (self.monitor.kill_enabled or self.is_homing()) or angle is None
+                or self.monitor.sample_rejected or angle <= self.monitor.allowed_deg):
+            self._kill_tilt_since = None
+            return
+        now = time.monotonic()
+        if self._kill_tilt_since is None:
+            self._kill_tilt_since = now
+        if now-self._kill_tilt_since >= self.monitor.persistence_s:
+            self._dispatch_sensor_kill('persistent tilt %.1f° during motion/recovery' % angle)
+
     def _check_hard_tilt(self):
         angle = self.monitor.last_tilt_deg
-        if self.hard_kill_latched:
-            return True
         if (not self.monitor.enabled or angle is None or self.monitor.sample_rejected
                 or angle < self.hard_kill_deg):
             return False
         self.hard_kill_latched = True
         self.monitor.fault_latched = True
         self.monitor.fault_reason = f'tilt {angle:.1f}° reached KILL limit {self.hard_kill_deg:.1f}°'
-        self._cancel_swipe(self.monitor.fault_reason, disable=True)
-        if self.on_kill:
-            try:
-                self.on_kill(self.monitor.fault_reason)
-            except Exception as exc:
-                self.countdown_error = 'KILL request failed: ' + str(exc)
+        self._dispatch_sensor_kill(self.monitor.fault_reason)
         return True
 
     def calibrate(self, sample_count=20, timeout_s=2.0):

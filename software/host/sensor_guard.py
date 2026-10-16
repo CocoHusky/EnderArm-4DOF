@@ -14,6 +14,7 @@ class SensorGuard:
         self.z_since = None
         self.flash_until = 0.0
         self.fault = None
+        self.active_reason = None
         self.delta_g = None
         self._reset_burst()
 
@@ -87,9 +88,11 @@ class SensorGuard:
         self.z_since = None
         self.previous = None
         self._reset_burst()
+        self.active_reason = None
 
     def update(self, accel, healthy=True, now=None):
         now = time.monotonic() if now is None else now
+        self.active_reason = None
         if not healthy or len(accel) != 3 or not all(math.isfinite(v) for v in accel):
             self.previous = None
             self.z_since = None
@@ -116,6 +119,7 @@ class SensorGuard:
         elif (outside and self.options['z_stop'] and self.z_since is not None
               and now-self.z_since >= self.options['z_persistence_s']):
             reason = '|Z| %.2f g exceeded %.2f g' % (abs(accel[2]), self.options['z_g'])
+        self.active_reason = reason
         if reason and self.fault is None:
             self.fault = reason
             return reason

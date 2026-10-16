@@ -70,6 +70,20 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
 
 
 class RecoveryHomeLockTests(unittest.TestCase):
+    def test_all_home_calls_expose_homing_state_and_clear_it_on_failure(self):
+        source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
+        function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
+                        and n.name == 'precise_home')
+        ns = {'homing_motion_active': False}
+        def home_pass(_clear):
+            self.assertTrue(ns['homing_motion_active'])
+            raise RuntimeError('home failed')
+        ns['_precise_home_pass'] = home_pass
+        exec(compile(ast.Module(body=[function], type_ignores=[]), '<home-state>', 'exec'), ns)
+        with self.assertRaises(RuntimeError):
+            ns['precise_home']()
+        self.assertFalse(ns['homing_motion_active'])
+
     def test_latched_sensor_fault_blocks_normal_motion_even_if_homed(self):
         state = {'homed': True, 'home_required': False}
         gate = recovery_gate(state, lambda: None, lambda: None)
@@ -81,9 +95,11 @@ class RecoveryHomeLockTests(unittest.TestCase):
         source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
                         and n.name == '_request_tilt_correction')
-        namespace = {'home_in_progress': True}
+        kills = []
+        namespace = {'home_in_progress': True, '_emergency_kill': kills.append}
         exec(compile(ast.Module(body=[function], type_ignores=[]), '<home-correction>', 'exec'), namespace)
         namespace['_request_tilt_correction']('tilt during Home')
+        self.assertEqual(len(kills), 1)
 
     def test_generic_recovery_holds_base_and_rail(self):
         source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())

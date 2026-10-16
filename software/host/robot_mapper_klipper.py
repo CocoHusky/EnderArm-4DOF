@@ -4,6 +4,7 @@ import heapq
 import json
 import math
 import os
+import random
 import re
 import threading
 import time
@@ -196,7 +197,7 @@ def _load_named_program(name):
 class MotionCancelled(RuntimeError):
     pass
 
-state = {"x":0.0,"y":0.0,"z":0.0,"linear_y":0.0,"motors_enabled":None,"linear_hardware":_load_linear_mode(),"arm_speed":40.0,"arm_accel":200.0,"arm_jerk":6.0,"linear_speed":30.0,"linear_accel":150.0,"linear_jerk":3.0,"homed":False,"busy":False,"message":"Connecting to controller...","home_x_counts":None,"home_y_counts":None,"home_z_counts":None,"boundary_enabled":_load_boundary_mode()}
+state = {"x":0.0,"y":0.0,"z":0.0,"linear_y":0.0,"motors_enabled":None,"linear_hardware":_load_linear_mode(),"arm_speed":40.0,"arm_accel":200.0,"arm_jerk":6.0,"linear_speed":30.0,"linear_accel":150.0,"linear_jerk":3.0,"homed":False,"home_required":False,"busy":False,"message":"Connecting to controller...","home_x_counts":None,"home_y_counts":None,"home_z_counts":None,"boundary_enabled":_load_boundary_mode()}
 boundary_test_session = {
     "id": 1,
     "started_at": time.time(),
@@ -321,7 +322,10 @@ def _sync_state_from_arm_robot():
     st=_arm_robot_status()
     if not st:
         return st
-    state["homed"]=bool(st.get("homed",state.get("homed",False)))
+    controller_homed=bool(st.get("homed",state.get("homed",False)))
+    # A completed tilt correction deliberately requires an operator-initiated
+    # Home, even though Klipper still has its prior coordinate reference.
+    state["homed"]=controller_homed and not state.get("home_required",False)
     # A programmed run is queued by this mapper (rather than arm_robot), so
     # do not let an idle native Dance status erase its local busy state.
     state["busy"]=bool(st.get("dance_active",False)) or _program_running()
@@ -1130,7 +1134,7 @@ def precise_home(clear_stop=True):
     _gcode(f"ARM_HOME SPEED={home_speed:.1f} ACCEL={home_accel:.1f}", timeout=180)
     ox,oy,oz=3.5,3.5,2.5
     state.update(
-        x=ox,y=oy,z=oz,linear_y=0.0,homed=True,
+        x=ox,y=oy,z=oz,linear_y=0.0,homed=True,home_required=False,
         home_x_counts=ox,home_y_counts=oy,home_z_counts=oz
     )
     global _axes_registered
@@ -1143,6 +1147,8 @@ def precise_home(clear_stop=True):
 def ensure_homed_for_motion():
     """Restore the physical reference before accepting a motion command."""
     _sync_state_from_arm_robot()
+    if state.get("home_required",False):
+        raise RuntimeError("Tilt recovery complete — press Home before normal motion")
     if state.get("homed", False):
         return
     state["message"]="Home reference lost — homing before motion"
@@ -1950,10 +1956,39 @@ def _find_high_recovery_plan(unit_x, unit_y, radius, minimum_z, rail, seed):
             continue
     raise RuntimeError("no higher recovery point is reachable inside the measured boundary")
 
+def _start_tilt_warning_flash():
+    """Flash red irregularly while the automatic correction is in motion."""
+    if SENSOR is None:
+        return None, None
+    stop=threading.Event()
+
+    def flash():
+        try:
+            while not stop.is_set():
+                SENSOR.set_led("red")
+                if stop.wait(random.uniform(0.08,0.22)):
+                    break
+                SENSOR.set_led("off")
+                stop.wait(random.uniform(0.10,0.32))
+        except Exception:
+            # Warning feedback must never interrupt a safety recovery.
+            pass
+        finally:
+            try:
+                SENSOR.set_led("off")
+            except Exception:
+                pass
+
+    thread=threading.Thread(target=flash,daemon=True,name="tilt-warning-flash")
+    thread.start()
+    return stop, thread
+
 def _tilt_correction_worker(reason):
     """Slow, boundary-on recovery from a sustained triplate tilt fault."""
     global correction_thread
     saved_tune=None
+    flash_stop=None
+    flash_thread=None
     try:
         with lock:
             _sync_state_from_arm_robot()
@@ -1968,6 +2003,7 @@ def _tilt_correction_worker(reason):
 
             state["busy"]=True
             state["message"]="Tilt correction starting — " + str(reason)
+            flash_stop,flash_thread=_start_tilt_warning_flash()
             saved_tune=(state["arm_speed"],state["arm_accel"],state["arm_jerk"],
                         state["linear_speed"],state["linear_accel"],state["linear_jerk"])
             _gcode("ARM_TUNE ARM_VELOCITY=20 ARM_ACCEL=80 ARM_CORNER=3 "
@@ -1995,13 +2031,18 @@ def _tilt_correction_worker(reason):
             seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
             raised=_find_high_recovery_plan(unit_x,unit_y,float(inboard["radius_mm"]),z+5.0,rail,seed)
             _queue_recovery_stage(raised,"raising to the highest modeled safe height")
-            state["message"]="Tilt correction complete — acknowledge the sensor fault before normal motion"
+            state.update(homed=False,home_required=True)
+            state["message"]="Tilt correction complete — press Home before normal motion"
     except MotionCancelled:
         state["message"]="Tilt correction stopped"
         stop_event.clear()
     except Exception as exc:
         state["message"]="Tilt correction not run: " + str(exc)
     finally:
+        if flash_stop is not None:
+            flash_stop.set()
+        if flash_thread is not None:
+            flash_thread.join(timeout=1)
         if saved_tune is not None:
             av,aa,ac,sv,sa,sc=saved_tune
             try:
@@ -2370,7 +2411,7 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
         <div class="muted" style="margin-top:8px">Short motion spikes are filtered. Samples outside 0.75–1.25 g are ignored for tilt.</div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
-      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Optional correction is slow and boundary-on: 5 mm clearance hop, retract toward the base axis, then raise to the highest modeled safe height.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No saved route selected</option></select><button id="sensorRecoverySave">Save route selection</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. It is separate from a manually saved recovery route.</div></div>
+      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Optional correction is slow and boundary-on: 5 mm clearance hop, retract toward the base axis, then raise to the highest modeled safe height. The sensor flashes red during recovery. When it finishes, press Home before normal motion.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No saved route selected</option></select><button id="sensorRecoverySave">Save route selection</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. It is separate from a manually saved recovery route.</div></div>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3255,7 +3296,7 @@ function renderProgram(program){
   }
   const status=$('programStatus');
   if(status)status.textContent=p.running?'Program is running — STOP finishes buffered motion.':(programHasDrafts?'Edits ready — Run will validate these current values before moving.':(points.length?points.length+' waypoint'+(points.length===1?'':'s')+' ready to run.':'Record one or more locations to build a program.'));
-  if($('programRun')){ $('programRun').disabled=!S.homed||!points.length||Boolean(S.busy); $('programRun').textContent='Run route'; }
+  if($('programRun')){ $('programRun').disabled=!S.homed||Boolean(S.home_required)||!points.length||Boolean(S.busy); $('programRun').textContent='Run route'; }
   if($('programAnalyze'))$('programAnalyze').disabled=!points.length||Boolean(p.running)||programAnalyzeInFlight;
   if($('programClear'))$('programClear').disabled=!points.length||Boolean(p.running);
   renderProgramPath(programHasDrafts&&programTableMode==='joint'?programDraftPoints():points);
@@ -3309,7 +3350,7 @@ function renderSensor(sensor){
     recoverySelect.innerHTML='<option value="">No route selected</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
   }
   if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=Boolean(sensor.correct_enabled)
-    ?'Correction ON: confirmed tilt runs a slow Boundary ON recovery. KILL must remain OFF.'
+    ?'Correction ON: confirmed tilt runs a slow Boundary ON recovery, flashes red, then requires Home. KILL must remain OFF.'
     :(recoveryName?'Saved route selected: '+recoveryName+'. Selection does not move the arm.'
       :'Tilt correction is OFF. A saved route selection does not move the arm.');
 
@@ -3360,8 +3401,8 @@ function rs(s){
   $('msg').textContent=(S.busy?'BUSY — ':'')+(S.message||'');
   $('msg').className=S.busy?'busy':'ok';
   const hb=$('homedBadge');
-  hb.textContent=S.homed?'HOMED':'NOT HOMED';
-  hb.className='badge '+(S.homed?'good':'bad');
+  hb.textContent=S.home_required?'HOME REQUIRED':(S.homed?'HOMED':'NOT HOMED');
+  hb.className='badge '+(S.homed&&!S.home_required?'good':'bad');
   const bb=$('boundaryToggle');
   if(bb){
     const on=S.boundary_enabled!==false;
@@ -4174,7 +4215,7 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
     if($('sensorCorrectEnabled').checked && $('sensorKillEnabled').checked){
       throw new Error('Choose either tilt correction or KILL, not both.');
     }
-    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height. Keep the area clear; this is not a hardware safety interlock.'))return;
+    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red, moves 5 mm up, retracts toward the base axis inside Boundary ON, then raises to the highest modeled safe height. It stops afterward and requires you to press Home before normal motion. Keep the area clear; this is not a hardware safety interlock.'))return;
     await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),

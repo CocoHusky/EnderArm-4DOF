@@ -49,11 +49,14 @@ resulting blended joint moves instead. Boundary OFF keeps its direct Cartesian
 behavior and does not use this corridor planner.
 
 The optional tilt correction is OFF by default and is mutually exclusive with
-tilt-triggered KILL. After the existing filtered/persistent tilt fault, it runs
-slowly with Boundary ON: a 5 mm world-Z hop, the smallest modeled inboard
-radius at the current heading, then the highest modeled safe world Z at that
-radius. It refuses to run unless the robot is homed and idle. This is a modeled
-recovery path, not a collision sensor or replacement for a hardware interlock.
+tilt-triggered KILL. After the existing filtered/persistent tilt fault, it
+flashes the sensor red irregularly and runs slowly with Boundary ON: a 5 mm
+world-Z hop, the smallest modeled inboard radius at the current heading, then
+the highest modeled safe world Z at that radius. It refuses to run unless the
+robot is homed and idle. When it finishes, normal motion remains locked until
+the operator explicitly presses Home; automatic homing is not allowed to clear
+that recovery lock. This is a modeled recovery path, not a collision sensor or
+replacement for a hardware interlock.
 
 ## Configuration and local state
 

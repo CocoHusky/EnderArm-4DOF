@@ -2232,6 +2232,40 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
   .controls .group{padding:4px;margin-bottom:3px}
 }
 @media(max-width:1100px){html,body{overflow:auto}main{height:auto;min-height:100vh}.dashboard{grid-template-columns:1fr;grid-template-rows:420px auto 280px 280px}.armCard{grid-column:1;grid-row:1}.controls{grid-column:1;grid-row:2;overflow:visible}.workspaceCard{grid-column:1;grid-row:3}.boundaryCard{grid-column:1;grid-row:4}}
+main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+.topbar{flex-wrap:wrap;min-width:0}.topbar .status{flex-wrap:wrap}.topbar .viewTabs{flex-wrap:wrap}
+#sensorPanel{height:auto;min-width:0;align-content:start;align-items:start;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:max-content max-content;grid-auto-rows:max-content;gap:12px;padding:12px;overflow:auto}
+#sensorPanel .debugCard{min-height:0;padding:16px;gap:10px}
+#sensorPanel .cardTitle{padding:0;margin:0;align-items:center}
+#sensorPanel h2{font-size:16px;margin:0}
+#sensorPanel .debugCard:nth-child(2){grid-column:1;grid-row:1}
+#sensorPanel .debugCard:nth-child(4){grid-column:2;grid-row:1}
+#sensorPanel .debugCard:nth-child(1){grid-column:1;grid-row:2}
+#sensorPanel .debugCard:nth-child(3){grid-column:2;grid-row:2}
+#sensorPanel button,#sensorPanel select,#sensorPanel input{font-size:13px;line-height:1.3}
+#sensorPanel button{min-height:36px;padding:7px 12px;white-space:nowrap}
+#sensorPanel input[type=number]{width:78px;min-height:36px}
+#sensorPanel select{min-height:36px;max-width:100%;border:1px solid #34404b;border-radius:7px;background:#141b22;color:#edf3f8;padding:6px 8px}
+#sensorPanel .group{margin:0!important;padding:12px}
+#sensorPanel .fieldrow,#sensorPanel .toolbar{gap:10px;justify-content:flex-start;flex-wrap:wrap}
+#sensorPanel .fieldrow label{display:inline-flex;align-items:center;gap:8px;font-size:12px}
+#sensorPanel .sensorToggle{display:inline-flex;align-items:center;gap:8px;font-size:13px!important;padding:8px 10px;min-height:36px;border:1px solid #34404b;border-radius:7px;background:#141b22;cursor:pointer;white-space:nowrap}
+#sensorPanel .sensorToggle:has(input:checked){background:#20384d;border-color:#52a9e8}
+#sensorPanel input[type=checkbox]{appearance:auto;width:17px;height:17px;margin:0;padding:0;flex:none;accent-color:#52a9e8}
+#sensorPanel .workspaceResult{padding:10px 12px;font-size:12px;min-height:0;margin:0!important}
+#sensorPanel .metricTable{font-size:12px;margin:0}
+#sensorTilt{font-size:24px;font-weight:700}
+#sensorPanel details{border-top:1px solid #293542;padding-top:10px;margin:0;font-size:12px}
+#sensorPanel summary{font-size:12px;color:#aebcc9;padding:4px 0}
+#sensorPanel details[open]>:not(summary){margin-top:10px}
+#sensorPanel .muted{font-size:12px;line-height:1.4}
+#sensorTapRows{display:grid;gap:8px}
+#sensorTapRows .fieldrow{display:grid;grid-template-columns:minmax(100px,1fr) minmax(110px,1.3fr) 100px auto;gap:8px}
+#sensorTapRows label,#sensorTapRows b{font-size:13px!important;font-weight:500!important;min-width:0}
+#sensorTapRows select{min-width:0;width:100%}
+#sensorAck{align-self:flex-start}
+#sensorPanel [hidden]{display:none!important}
+@media(max-width:850px){#sensorPanel{grid-template-columns:minmax(0,1fr)}#sensorPanel .debugCard:nth-child(n){grid-column:1;grid-row:auto}#sensorPanel .debugCard:nth-child(2){order:-2}#sensorPanel .debugCard:nth-child(4){order:-1}#sensorTapRows .fieldrow{grid-template-columns:100px minmax(90px,1fr) 90px auto}}
 </style>
 <style>
 #cameraPanel[hidden]{display:none!important}
@@ -2450,14 +2484,15 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
       </tbody></table>
     </section>
     <section class="card debugCard">
-      <div class="cardTitle"><div><h2>Triplate orientation</h2><div class="muted">Calibrate stationary in the normal mounted pose. Monitoring does not move the robot.</div></div><span id="sensorFaultBadge" class="badge">NOT CALIBRATED</span></div>
-      <table class="metricTable"><tbody><tr><td>Filtered deviation from calibrated normal</td><td id="sensorTilt">—</td></tr></tbody></table>
+      <div class="cardTitle"><h2>Tilt protection</h2><span id="sensorFaultBadge" class="badge">NOT CALIBRATED</span></div>
+      <table class="metricTable"><tbody><tr><td>Tilt</td><td id="sensorTilt">—</td></tr></tbody></table>
       <div class="group" style="margin-top:10px">
         <div class="fieldrow"><label>Allowed tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div>
-        <div class="toolbar" style="margin-top:8px"><button id="sensorCalibrate" class="primary">Calibrate current pose</button><label class="sensorToggle" title="Measure sustained tilt against the calibrated normal pose"><input id="sensorMonitorEnabled" type="checkbox">Monitor tilt</label><label class="sensorToggle" title="Run the selected slow recovery after a confirmed tilt"><input id="sensorCorrectEnabled" type="checkbox">Auto-correct tilt</label><label class="sensorToggle" title="Emergency-stop the controller after a confirmed tilt"><input id="sensorKillEnabled" type="checkbox">KILL on tilt</label><button id="sensorMonitorApply" class="primary">Save monitoring</button><button id="sensorAck">Acknowledge fault</button></div>
-        <div class="muted" style="margin-top:8px">Short motion spikes are filtered. Samples outside 0.75–1.25 g are ignored for tilt.</div>
+        <div class="toolbar" style="margin-top:10px"><label class="sensorToggle"><input id="sensorMonitorEnabled" type="checkbox">Monitor</label><label class="sensorToggle"><input id="sensorKillEnabled" type="checkbox">KILL on tilt</label><label class="sensorToggle"><input id="sensorCorrectEnabled" type="checkbox">Auto-correct</label><button id="sensorMonitorApply" class="primary" disabled>Save</button></div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
+      <button id="sensorAck" hidden>Clear fault</button>
+      <details><summary>Calibration</summary><p class="muted">Keep the plate still in its normal position.</p><button id="sensorCalibrate">Calibrate</button></details>
       <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Choose a recorded counter-clockwise X/Y path for this specific lock-up. During correction, Motor Z and the rail stay fixed. With no route selected, the generic inboard-and-up recovery is used.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">Use generic recovery</option></select><button id="sensorRecoverySave">Use selected route</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. Selecting a route does not move the arm.</div></div>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
@@ -2480,7 +2515,8 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
       <div class="fieldrow" style="margin-top:10px"><label>LED follows <select id="sensorMode"><option value="manual">Manual color</option><option value="acceleration">Dominant acceleration axis</option><option value="orientation">Board orientation</option><option value="slider">Touch position</option><option value="tap">Tap / impact</option><option value="motion">Movement</option></select></label><button id="sensorModeSet">Set mode</button></div>
     </section>
     <section class="card debugCard">
-      <div class="cardTitle"><div><h2>Touch gestures</h2><div class="muted">Press left / center / right, or swipe. Lift to confirm; runs after 2 seconds. Touch again or Disable to cancel.</div></div><span id="sensorSwipeBadge" class="badge">DISABLED</span></div>
+      <div class="cardTitle"><h2>Touch programs</h2><span id="sensorSwipeBadge" class="badge">DISABLED</span></div>
+      <div class="muted">Release to run after 2 seconds. Touch again to cancel.</div>
       <div id="sensorTapRows"></div>
       <div class="toolbar" style="margin-top:8px"><button id="sensorTapSave">Save mappings</button><button id="sensorSwipeEnable" class="primary">Enable gestures</button><button id="sensorSwipeDisable">Disable</button></div>
       <div id="sensorSwipeStatus" class="workspaceResult" style="margin-top:8px">Disabled during initial sensor testing.</div>
@@ -3388,6 +3424,8 @@ function renderSensor(sensor){
   $('sensorCorrectEnabled').checked=Boolean(sensor.correct_enabled);
   }
   const fault=$('sensorFaultBadge');
+  $('sensorAck').hidden=!mon.fault_latched&&!guard.fault;
+  $('sensorMonitorApply').disabled=!$('sensorMonitorApply').dataset.dirty;
   if(mon.fault_latched){fault.textContent='FAULT LATCHED';fault.className='badge bad'}
   else if(!mon.calibrated){fault.textContent='NOT CALIBRATED';fault.className='badge'}
   else if(mon.enabled){fault.textContent='MONITORING';fault.className='badge good'}
@@ -3413,6 +3451,8 @@ function renderSensor(sensor){
   $('sensorLedStatus').textContent=frame?.led||'—';
 
   const swipe=sensor.swipe||{},swipeBadge=$('sensorSwipeBadge');
+  $('sensorSwipeEnable').hidden=Boolean(swipe.enabled);
+  $('sensorSwipeDisable').hidden=!swipe.enabled;
   swipeBadge.textContent=swipe.enabled?'ENABLED':'DISABLED';
   swipeBadge.className='badge '+(swipe.enabled?'warn':'');
   const gestures=sensor.gestures||{},selected=sensor.last_gesture;
@@ -4264,7 +4304,8 @@ $('sensorCalibrate').addEventListener('click',async()=>{
 });
 for(const id of ['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorMonitorEnabled','sensorKillEnabled','sensorCorrectEnabled'])$(id).addEventListener('input',()=>{
   $('sensorMonitorApply').dataset.dirty='1';
-  $('sensorMonitorApply').textContent='Save monitoring *';
+  $('sensorMonitorApply').textContent='Save';
+  $('sensorMonitorApply').disabled=false;
 });
 $('sensorMonitorApply').addEventListener('click',async()=>{
   try{
@@ -4285,7 +4326,7 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
       correct_enabled:$('sensorCorrectEnabled').checked
     });
     delete $('sensorMonitorApply').dataset.dirty;
-    $('sensorMonitorApply').textContent='Save monitoring';
+    $('sensorMonitorApply').textContent='Save';
     renderSensor(result.sensor||result);
   }catch(e){alert(e.message)}
 });

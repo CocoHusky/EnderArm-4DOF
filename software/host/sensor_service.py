@@ -34,6 +34,7 @@ class SensorService:
         port,
         swipe_feature=False,
         on_kill=None,
+        on_correct=None,
         can_run_program=None,
         run_program=None,
     ):
@@ -41,6 +42,7 @@ class SensorService:
         self.transport = SensorSerial(port, 115200, stale_after=0.75)
         self.swipe_feature = bool(swipe_feature)
         self.on_kill = on_kill
+        self.on_correct = on_correct
         self.can_run_program = can_run_program or (lambda: (False, "robot callback unavailable"))
         self.run_program = run_program or (lambda name: None)
         self.monitor = TiltMonitor()
@@ -61,6 +63,7 @@ class SensorService:
         self.last_swipe = "none"
         self.last_swipe_at = None
         self.recovery_program = ''
+        self.correct_enabled = False
         self.taps = [dict(x) for x in DEFAULT_TAPS]
         self.gestures = {key: {'program': '', 'color': color} for key, color in
                          zip(GESTURES, ('red', 'green', 'blue', 'cyan', 'magenta'))}
@@ -117,6 +120,7 @@ class SensorService:
         recovery = raw.get('recovery_program', '')
         if isinstance(recovery, str):
             self.recovery_program = recovery[:80]
+        self.correct_enabled = bool(raw.get('correct_enabled', False))
 
     def _save_config(self):
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -129,6 +133,7 @@ class SensorService:
             "selected_tap": self.selected_tap,
             "gestures": self.gestures,
             "recovery_program": self.recovery_program,
+            "correct_enabled": self.correct_enabled,
         }
         tmp = self.config_path + ".tmp"
         with open(tmp, "w") as stream:
@@ -291,11 +296,18 @@ class SensorService:
                     except Exception as exc:
                         self.countdown_error = 'KILL request failed: ' + str(exc)
             triggered = self.monitor.update(accel_g if len(accel_g) == 3 else [0, 0, 1], healthy=healthy)
-            if triggered and self.monitor.kill_enabled and self.on_kill:
-                try:
-                    self.on_kill(self.monitor.fault_reason)
-                except Exception:
-                    pass
+            if triggered:
+                self._cancel_swipe('confirmed tilt fault', disable=True)
+                if self.monitor.kill_enabled and self.on_kill:
+                    try:
+                        self.on_kill(self.monitor.fault_reason)
+                    except Exception:
+                        pass
+                elif self.correct_enabled and not self.guard.fault and self.on_correct:
+                    try:
+                        self.on_correct(self.monitor.fault_reason)
+                    except Exception as exc:
+                        self.countdown_error = 'Tilt correction request failed: ' + str(exc)
 
             slider = frame.get("slider") or {}
             self._process_gesture(slider, healthy)
@@ -329,7 +341,8 @@ class SensorService:
         self._save_config()
         return {"reference": ref, "samples": len(samples), "max_deviation_g": spread}
 
-    def configure_monitor(self, allowed_deg=None, persistence_s=None, filter_s=None, enabled=None, kill_enabled=None):
+    def configure_monitor(self, allowed_deg=None, persistence_s=None, filter_s=None, enabled=None,
+                          kill_enabled=None, correct_enabled=None):
         with self._lock:
             self.monitor.configure(allowed_deg, persistence_s, filter_s)
             if enabled is not None:
@@ -337,7 +350,15 @@ class SensorService:
             if kill_enabled is not None:
                 if kill_enabled and not self.monitor.enabled:
                     raise ValueError("enable tilt monitoring before enabling KILL")
+                if kill_enabled and (self.correct_enabled if correct_enabled is None else bool(correct_enabled)):
+                    raise ValueError("choose either KILL or tilt correction, not both")
                 self.monitor.kill_enabled = bool(kill_enabled)
+            if correct_enabled is not None:
+                if correct_enabled and not self.monitor.enabled:
+                    raise ValueError("enable tilt monitoring before enabling correction")
+                if correct_enabled and self.monitor.kill_enabled:
+                    raise ValueError("choose either KILL or tilt correction, not both")
+                self.correct_enabled = bool(correct_enabled)
             self._save_config()
         return self.snapshot()
 
@@ -472,6 +493,7 @@ class SensorService:
                 "accel_g": accel_g,
                 "monitor": mon,
                 "recovery_program": self.recovery_program,
+                "correct_enabled": self.correct_enabled,
                 "guard": self.guard.snapshot(),
                 "gestures": {key:dict(value, label=GESTURE_LABELS[GESTURES.index(key)])
                              for key,value in self.gestures.items()},

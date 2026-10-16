@@ -1911,6 +1911,120 @@ def _sensor_run_program(name):
         )
         program_thread.start()
 
+correction_thread = None
+correction_thread_lock = threading.Lock()
+
+def _queue_recovery_stage(plan, label):
+    """Queue one recovery stage, wait for arrival, then refresh live joints."""
+    check_stop()
+    state["message"] = "Tilt correction — " + label
+    queue_safe_world_route(plan)
+    _gcode("M400", timeout=180)
+    _sync_state_from_arm_robot()
+
+def _recovery_plan_at_radius(unit_x, unit_y, radius, z, rail, seed):
+    """Resolve one world point at the current base heading and fixed rail."""
+    plan=plan_world_target(unit_x*radius, rail+unit_y*radius, z, rail, seed=seed)
+    safe_joint_route((float(seed["a"]),float(seed["b"])), (float(plan["A"]),float(plan["B"])))
+    return plan
+
+def _find_inboard_recovery_plan(unit_x, unit_y, current_radius, z, rail, seed):
+    """Find the smallest reachable radial distance at a fixed safe height."""
+    samples=workspace_payload().get("side_samples", [])
+    radii=sorted({round(float(sample[0]),2) for sample in samples
+                  if float(sample[0]) < current_radius-1.0})
+    for radius in radii:
+        try:
+            return _recovery_plan_at_radius(unit_x,unit_y,radius,z,rail,seed)
+        except RuntimeError:
+            continue
+    raise RuntimeError("no inboard recovery point is reachable inside the measured boundary")
+
+def _find_high_recovery_plan(unit_x, unit_y, radius, minimum_z, rail, seed):
+    """Find the highest modeled point at the chosen inboard radius."""
+    top=float(workspace_payload()["bounds"]["z"][1])
+    for z in range(int(math.floor(top)), int(math.ceil(minimum_z))-1, -2):
+        try:
+            return _recovery_plan_at_radius(unit_x,unit_y,radius,float(z),rail,seed)
+        except RuntimeError:
+            continue
+    raise RuntimeError("no higher recovery point is reachable inside the measured boundary")
+
+def _tilt_correction_worker(reason):
+    """Slow, boundary-on recovery from a sustained triplate tilt fault."""
+    global correction_thread
+    saved_tune=None
+    try:
+        with lock:
+            _sync_state_from_arm_robot()
+            if not state.get("boundary_enabled", True):
+                raise RuntimeError("Boundary protection must be ON for tilt correction")
+            if not state.get("homed"):
+                raise RuntimeError("robot must be homed for tilt correction")
+            if state.get("busy") or _program_running():
+                raise RuntimeError("robot is busy; tilt correction was not started")
+            if SENSOR is None or SENSOR.monitor.kill_enabled:
+                raise RuntimeError("tilt correction is unavailable while KILL is enabled")
+
+            state["busy"]=True
+            state["message"]="Tilt correction starting — " + str(reason)
+            saved_tune=(state["arm_speed"],state["arm_accel"],state["arm_jerk"],
+                        state["linear_speed"],state["linear_accel"],state["linear_jerk"])
+            _gcode("ARM_TUNE ARM_VELOCITY=20 ARM_ACCEL=80 ARM_CORNER=3 "
+                   "SLIDE_VELOCITY=15 SLIDE_ACCEL=60 SLIDE_CORNER=2", timeout=5)
+
+            initial=kinematic_state(state["x"],state["y"],state["z"])["tool"]
+            rail=float(state.get("linear_y",0.0))
+            x=float(initial["x"])
+            y=float(initial["y"])+rail
+            z=float(initial["z"])
+            radius=math.hypot(x,y-rail)
+            if radius <= 1.0:
+                raise RuntimeError("current tool heading is too close to the base axis for correction")
+            unit_x=x/radius
+            unit_y=(y-rail)/radius
+
+            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":rail}
+            hop=_recovery_plan_at_radius(unit_x,unit_y,radius,z+5.0,rail,seed)
+            _queue_recovery_stage(hop,"5 mm clearance hop")
+
+            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
+            inboard=_find_inboard_recovery_plan(unit_x,unit_y,radius,z+5.0,rail,seed)
+            _queue_recovery_stage(inboard,"retracting toward the base axis")
+
+            seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
+            raised=_find_high_recovery_plan(unit_x,unit_y,float(inboard["radius_mm"]),z+5.0,rail,seed)
+            _queue_recovery_stage(raised,"raising to the highest modeled safe height")
+            state["message"]="Tilt correction complete — acknowledge the sensor fault before normal motion"
+    except MotionCancelled:
+        state["message"]="Tilt correction stopped"
+        stop_event.clear()
+    except Exception as exc:
+        state["message"]="Tilt correction not run: " + str(exc)
+    finally:
+        if saved_tune is not None:
+            av,aa,ac,sv,sa,sc=saved_tune
+            try:
+                _gcode(f"ARM_TUNE ARM_VELOCITY={av:.4f} ARM_ACCEL={aa:.4f} "
+                       f"ARM_CORNER={ac:.4f} SLIDE_VELOCITY={sv:.4f} "
+                       f"SLIDE_ACCEL={sa:.4f} SLIDE_CORNER={sc:.4f}", timeout=5)
+            except Exception:
+                pass
+        state["busy"]=False
+        with correction_thread_lock:
+            correction_thread=None
+
+def _request_tilt_correction(reason):
+    """Start at most one optional correction worker after a confirmed fault."""
+    global correction_thread
+    with correction_thread_lock:
+        if correction_thread and correction_thread.is_alive():
+            return
+        correction_thread=threading.Thread(
+            target=_tilt_correction_worker,args=(reason,),daemon=True,name="tilt-correction"
+        )
+        correction_thread.start()
+
 def _dance_worker(speed, accel, linear_speed, linear_accel):
     """Continuous Dance with tuning sampled only at cycle boundaries."""
     global dance_thread
@@ -2252,11 +2366,11 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
       <table class="metricTable"><tbody><tr><td>Filtered deviation from calibrated normal</td><td id="sensorTilt">—</td></tr></tbody></table>
       <div class="group" style="margin-top:10px">
         <div class="fieldrow"><label>Allowed tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div>
-        <div class="toolbar" style="margin-top:8px"><button id="sensorCalibrate" class="primary">Calibrate current pose</button><button id="sensorMonitorApply">Apply monitoring</button><label class="muted"><input id="sensorMonitorEnabled" type="checkbox"> Monitor tilt</label><label class="muted"><input id="sensorKillEnabled" type="checkbox"> KILL on confirmed fault</label><button id="sensorAck">Acknowledge latched fault</button></div>
+        <div class="toolbar" style="margin-top:8px"><button id="sensorCalibrate" class="primary">Calibrate current pose</button><button id="sensorMonitorApply">Apply monitoring</button><label class="muted"><input id="sensorMonitorEnabled" type="checkbox"> Monitor tilt</label><label class="muted"><input id="sensorCorrectEnabled" type="checkbox"> Correct on confirmed tilt</label><label class="muted"><input id="sensorKillEnabled" type="checkbox"> KILL on confirmed fault</label><button id="sensorAck">Acknowledge latched fault</button></div>
         <div class="muted" style="margin-top:8px">Short motion spikes are filtered. Samples outside 0.75–1.25 g are ignored for tilt.</div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
-      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery route</h3><div class="muted">Create and save a route in Programmed movements, then choose it here. Selecting it does not move the arm.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No route selected</option></select><button id="sensorRecoverySave">Save recovery route</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">A tilt fault uses KILL when enabled; it never runs this route automatically.</div></div>
+      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery</h3><div class="muted">Optional correction is slow and boundary-on: 5 mm clearance hop, retract toward the base axis, then raise to the highest modeled safe height.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No saved route selected</option></select><button id="sensorRecoverySave">Save route selection</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">Tilt correction is OFF. It is separate from a manually saved recovery route.</div></div>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3182,6 +3296,7 @@ function renderSensor(sensor){
   if(document.activeElement!==$('sensorTiltFilter'))$('sensorTiltFilter').value=Number(mon.filter_s??.25).toFixed(2);
   $('sensorMonitorEnabled').checked=Boolean(mon.enabled);
   $('sensorKillEnabled').checked=Boolean(mon.kill_enabled);
+  $('sensorCorrectEnabled').checked=Boolean(sensor.correct_enabled);
   const fault=$('sensorFaultBadge');
   if(mon.fault_latched){fault.textContent='FAULT LATCHED';fault.className='badge bad'}
   else if(!mon.calibrated){fault.textContent='NOT CALIBRATED';fault.className='badge'}
@@ -3193,9 +3308,10 @@ function renderSensor(sensor){
     const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
     recoverySelect.innerHTML='<option value="">No route selected</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
   }
-  if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=recoveryName
-    ?'Selected: '+recoveryName+'. A confirmed tilt fault uses KILL when enabled; this route is not automatic.'
-    :'Select a saved route after plotting it in Programmed movements. Selection does not move the arm.';
+  if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=Boolean(sensor.correct_enabled)
+    ?'Correction ON: confirmed tilt runs a slow Boundary ON recovery. KILL must remain OFF.'
+    :(recoveryName?'Saved route selected: '+recoveryName+'. Selection does not move the arm.'
+      :'Tilt correction is OFF. A saved route selection does not move the arm.');
 
   const slider=frame?.slider;
   $('sensorSliderPos').textContent=slider?((Number(slider.position)/10).toFixed(1)+'%'):'—';
@@ -4055,12 +4171,17 @@ $('sensorCalibrate').addEventListener('click',async()=>{
 });
 $('sensorMonitorApply').addEventListener('click',async()=>{
   try{
+    if($('sensorCorrectEnabled').checked && $('sensorKillEnabled').checked){
+      throw new Error('Choose either tilt correction or KILL, not both.');
+    }
+    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height. Keep the area clear; this is not a hardware safety interlock.'))return;
     await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),
       filter_s:Number($('sensorTiltFilter').value),
       enabled:$('sensorMonitorEnabled').checked,
-      kill_enabled:$('sensorKillEnabled').checked
+      kill_enabled:$('sensorKillEnabled').checked,
+      correct_enabled:$('sensorCorrectEnabled').checked
     });
   }catch(e){alert(e.message)}
 });
@@ -4564,6 +4685,7 @@ class Handler(BaseHTTPRequestHandler):
                         filter_s=body.get("filter_s"),
                         enabled=body.get("enabled"),
                         kill_enabled=body.get("kill_enabled"),
+                        correct_enabled=body.get("correct_enabled"),
                     ))
                 elif self.path=="/sensor_recovery":
                     self.reply(SENSOR.set_recovery_program(body.get("program", "")))
@@ -5091,6 +5213,7 @@ if __name__=="__main__":
             SENSOR_PORT,
             swipe_feature=FEATURES["sensor_swipe_programs"],
             on_kill=lambda reason:_emergency_kill("confirmed tilt fault: "+str(reason)),
+            on_correct=_request_tilt_correction,
             can_run_program=_sensor_can_run_program,
             run_program=_sensor_run_program,
         )

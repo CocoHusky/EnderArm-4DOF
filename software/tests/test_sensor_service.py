@@ -202,6 +202,17 @@ class SensorServiceTests(unittest.TestCase):
             self.assertEqual(other.recovery_program, 'Unwind linkage')
             self.assertFalse(other.monitor.kill_enabled)
 
+    def test_tilt_correction_is_opt_in_and_excludes_kill(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc=self.make_service(td)
+            svc.configure_monitor(enabled=True, correct_enabled=True)
+            self.assertTrue(svc.snapshot()['correct_enabled'])
+            with self.assertRaises(ValueError):
+                svc.configure_monitor(kill_enabled=True)
+            other=SensorService(td+'/sensor_config.json','fake',swipe_feature=True)
+            self.assertTrue(other.correct_enabled)
+            self.assertFalse(other.monitor.kill_enabled)
+
     def test_snapshot_hides_sensor_values_when_stale(self):
         with tempfile.TemporaryDirectory() as td:
             svc=self.make_service(td)

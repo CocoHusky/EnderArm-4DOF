@@ -2263,8 +2263,8 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
 }
 @media(max-width:1100px){html,body{overflow:auto}main{height:auto;min-height:100vh}.dashboard{grid-template-columns:1fr;grid-template-rows:420px auto 280px 280px}.armCard{grid-column:1;grid-row:1}.controls{grid-column:1;grid-row:2;overflow:visible}.workspaceCard{grid-column:1;grid-row:3}.boundaryCard{grid-column:1;grid-row:4}}
 main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-.topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;min-width:0}
-.topbar .title{grid-column:1;grid-row:1}.topbar .viewTabs{grid-column:2;grid-row:1;flex-wrap:wrap;justify-content:flex-end;margin:0}
+.topbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;min-width:0}
+.topbar .title{grid-column:1;grid-row:1}.topbar .viewTabs{grid-column:2;grid-row:1;flex-wrap:wrap;justify-content:flex-start;margin:0}
 .topbar #msg{grid-column:1;grid-row:2;min-width:0;max-width:100%}.topbar .status{grid-column:2;grid-row:2;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:850px){.topbar .title{grid-column:1/-1}.topbar .viewTabs{grid-column:1/-1;grid-row:2;justify-content:flex-start}.topbar #msg{grid-column:1/-1;grid-row:3}.topbar .status{grid-column:1/-1;grid-row:4}}
 #sensorPanel{height:auto;min-width:0;align-content:start;align-items:start;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:max-content max-content;grid-auto-rows:max-content;gap:12px;padding:12px;overflow:auto}

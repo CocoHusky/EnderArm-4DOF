@@ -2107,12 +2107,14 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
     </section>
     <section class="card debugCard">
       <div class="cardTitle"><div><h2>Triplate orientation</h2><div class="muted">Calibrate stationary in the normal mounted pose. Monitoring does not move the robot.</div></div><span id="sensorFaultBadge" class="badge">NOT CALIBRATED</span></div>
-      <table class="metricTable"><tbody><tr><td>Deviation from calibrated normal</td><td id="sensorTilt">—</td></tr></tbody></table>
+      <table class="metricTable"><tbody><tr><td>Filtered deviation from calibrated normal</td><td id="sensorTilt">—</td></tr></tbody></table>
       <div class="group" style="margin-top:10px">
-        <div class="fieldrow"><label>Allowed tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label></div>
+        <div class="fieldrow"><label>Allowed tilt ° <input id="sensorTiltLimit" type="number" min="1" max="60" step="1" value="15"></label><label>Persistence s <input id="sensorPersistence" type="number" min="0.05" max="10" step="0.05" value="0.75"></label><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div>
         <div class="toolbar" style="margin-top:8px"><button id="sensorCalibrate" class="primary">Calibrate current pose</button><button id="sensorMonitorApply">Apply monitoring</button><label class="muted"><input id="sensorMonitorEnabled" type="checkbox"> Monitor tilt</label><label class="muted"><input id="sensorKillEnabled" type="checkbox"> KILL on confirmed fault</label><button id="sensorAck">Acknowledge latched fault</button></div>
+        <div class="muted" style="margin-top:8px">Short motion spikes are filtered. Samples outside 0.75–1.25 g are ignored for tilt.</div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
+      <div class="group" style="margin-top:10px"><div class="cardTitle"><div><h3>Lock-up recovery route</h3><div class="muted">Create and save a route in Programmed movements, then choose it here. Selecting it does not move the arm.</div></div></div><div class="toolbar"><select id="sensorRecoveryProgram" aria-label="Lock-up recovery route"><option value="">No route selected</option></select><button id="sensorRecoverySave">Save recovery route</button></div><div id="sensorRecoveryStatus" class="muted" style="margin-top:8px">A tilt fault uses KILL when enabled; it never runs this route automatically.</div></div>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>
@@ -3035,6 +3037,7 @@ function renderSensor(sensor){
   $('sensorTilt').textContent=tilt==null?'—':tilt.toFixed(2)+'°';
   if(document.activeElement!==$('sensorTiltLimit'))$('sensorTiltLimit').value=Number(mon.allowed_deg??15).toFixed(1);
   if(document.activeElement!==$('sensorPersistence'))$('sensorPersistence').value=Number(mon.persistence_s??.75).toFixed(2);
+  if(document.activeElement!==$('sensorTiltFilter'))$('sensorTiltFilter').value=Number(mon.filter_s??.25).toFixed(2);
   $('sensorMonitorEnabled').checked=Boolean(mon.enabled);
   $('sensorKillEnabled').checked=Boolean(mon.kill_enabled);
   const fault=$('sensorFaultBadge');
@@ -3043,6 +3046,14 @@ function renderSensor(sensor){
   else if(mon.enabled){fault.textContent='MONITORING';fault.className='badge good'}
   else{fault.textContent='CALIBRATED';fault.className='badge good'}
   $('sensorFaultReason').textContent=mon.fault_reason||'No sensor fault.';
+  const recoverySelect=$('sensorRecoveryProgram'), recoveryName=sensor.recovery_program||'';
+  if(recoverySelect && document.activeElement!==recoverySelect){
+    const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
+    recoverySelect.innerHTML='<option value="">No route selected</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
+  }
+  if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=recoveryName
+    ?'Selected: '+recoveryName+'. A confirmed tilt fault uses KILL when enabled; this route is not automatic.'
+    :'Select a saved route after plotting it in Programmed movements. Selection does not move the arm.';
 
   const slider=frame?.slider;
   $('sensorSliderPos').textContent=slider?((Number(slider.position)/10).toFixed(1)+'%'):'—';
@@ -3905,10 +3916,14 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
     await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),
+      filter_s:Number($('sensorTiltFilter').value),
       enabled:$('sensorMonitorEnabled').checked,
       kill_enabled:$('sensorKillEnabled').checked
     });
   }catch(e){alert(e.message)}
+});
+$('sensorRecoverySave').addEventListener('click',async()=>{
+  try{await sensorCommand('/sensor_recovery',{program:$('sensorRecoveryProgram').value})}catch(e){alert(e.message)}
 });
 $('sensorAck').addEventListener('click',async()=>{try{await sensorCommand('/sensor_ack',{})}catch(e){alert(e.message)}});
 $('sensorLedSet').addEventListener('click',async()=>{try{await sensorCommand('/sensor_led',{color:$('sensorLedColor').value})}catch(e){alert(e.message)}});
@@ -4385,9 +4400,12 @@ class Handler(BaseHTTPRequestHandler):
                     self.reply(SENSOR.configure_monitor(
                         allowed_deg=body.get("allowed_deg"),
                         persistence_s=body.get("persistence_s"),
+                        filter_s=body.get("filter_s"),
                         enabled=body.get("enabled"),
                         kill_enabled=body.get("kill_enabled"),
                     ))
+                elif self.path=="/sensor_recovery":
+                    self.reply(SENSOR.set_recovery_program(body.get("program", "")))
                 elif self.path=="/sensor_ack":
                     self.reply(SENSOR.acknowledge_fault())
                 elif self.path=="/sensor_guard":

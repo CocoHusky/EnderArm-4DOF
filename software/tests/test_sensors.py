@@ -55,6 +55,22 @@ class TiltTests(unittest.TestCase):
         self.assertFalse(monitor.update([1,0,0],healthy=False,now=2))
         self.assertFalse(monitor.fault_latched)
 
+    def test_acceleration_spike_is_ignored(self):
+        monitor=TiltMonitor(allowed_deg=10,persistence_s=0.1,filter_s=0.1)
+        monitor.calibrate([0,0,1])
+        monitor.enabled=True
+        self.assertFalse(monitor.update([3,0,0],now=1.0))
+        self.assertTrue(monitor.sample_rejected)
+        self.assertFalse(monitor.fault_latched)
+
+    def test_sustained_stationary_tilt_still_latches(self):
+        monitor=TiltMonitor(allowed_deg=10,persistence_s=0.2,filter_s=0.1)
+        monitor.calibrate([0,0,1])
+        monitor.enabled=True
+        for now in (1.0, 1.1, 1.2):
+            self.assertFalse(monitor.update([0.5,0,0.866],now=now))
+        self.assertTrue(monitor.update([0.5,0,0.866],now=1.3))
+
 
 if __name__=="__main__":
     unittest.main()

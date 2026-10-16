@@ -50,10 +50,25 @@ or choosing **Disable** cancels the countdown. Saving mappings, a fault, or a
 reconnection also cancels it. Restart/reconnection requires re-enabling;
 changing tabs does not disable it. Save route edits before using gestures.
 
-## Impact and orientation checks
+## Tilt, impact, and orientation checks
 
-Start with LED feedback only. Each checkbox is separate; Apply commits the
-settings. These options reset OFF when the host restarts.
+Calibrate the Triplate while the arm is stationary in its normal mounted pose.
+**Monitor tilt** and **KILL on confirmed fault** are separate switches; both
+must be on before a sustained tilt sends KILL. A 15° limit with 0.75 seconds
+of persistence means the reading has to stay over 15° for 0.75 seconds.
+
+Tilt uses a short vector filter. Samples outside 0.75–1.25 g are ignored, so a
+large bump is not treated as a gravity direction. The filter and persistence
+reduce nuisance trips but do not make this a hardware safety system.
+
+The **Lock-up recovery route** picker stores the name of a route created in
+Programmed movements. It does not move the arm automatically. A KILL puts
+Klipper into an emergency state, so it cannot also run a recovery route. Decide
+on a separate earlier recovery threshold and test that route slowly before
+adding automatic recovery behavior.
+
+Start with LED feedback only. Each impact-protection checkbox is separate;
+Apply commits the settings. These options reset OFF when the host restarts.
 
 | Option | Meaning |
 | --- | --- |

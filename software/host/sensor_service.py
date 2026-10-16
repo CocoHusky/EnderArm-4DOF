@@ -60,6 +60,7 @@ class SensorService:
         self.countdown_error = None
         self.last_swipe = "none"
         self.last_swipe_at = None
+        self.recovery_program = ''
         self.taps = [dict(x) for x in DEFAULT_TAPS]
         self.gestures = {key: {'program': '', 'color': color} for key, color in
                          zip(GESTURES, ('red', 'green', 'blue', 'cyan', 'magenta'))}
@@ -76,7 +77,7 @@ class SensorService:
         if not isinstance(raw, dict):
             return
         try:
-            self.monitor.configure(raw.get("allowed_deg"), raw.get("persistence_s"))
+            self.monitor.configure(raw.get("allowed_deg"), raw.get("persistence_s"), raw.get("filter_s"))
         except (TypeError, ValueError):
             pass
         ref = raw.get("reference")
@@ -113,16 +114,21 @@ class SensorService:
             self.selected_tap = max(0, min(len(self.taps)-1, int(raw.get("selected_tap", 0))))
         except (TypeError, ValueError):
             self.selected_tap = 0
+        recovery = raw.get('recovery_program', '')
+        if isinstance(recovery, str):
+            self.recovery_program = recovery[:80]
 
     def _save_config(self):
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         payload = {
             "allowed_deg": self.monitor.allowed_deg,
             "persistence_s": self.monitor.persistence_s,
+            "filter_s": self.monitor.filter_s,
             "reference": self.monitor.reference,
             "taps": self.taps,
             "selected_tap": self.selected_tap,
             "gestures": self.gestures,
+            "recovery_program": self.recovery_program,
         }
         tmp = self.config_path + ".tmp"
         with open(tmp, "w") as stream:
@@ -323,15 +329,23 @@ class SensorService:
         self._save_config()
         return {"reference": ref, "samples": len(samples), "max_deviation_g": spread}
 
-    def configure_monitor(self, allowed_deg=None, persistence_s=None, enabled=None, kill_enabled=None):
+    def configure_monitor(self, allowed_deg=None, persistence_s=None, filter_s=None, enabled=None, kill_enabled=None):
         with self._lock:
-            self.monitor.configure(allowed_deg, persistence_s)
+            self.monitor.configure(allowed_deg, persistence_s, filter_s)
             if enabled is not None:
                 self.monitor.enabled = bool(enabled)
             if kill_enabled is not None:
                 if kill_enabled and not self.monitor.enabled:
                     raise ValueError("enable tilt monitoring before enabling KILL")
                 self.monitor.kill_enabled = bool(kill_enabled)
+            self._save_config()
+        return self.snapshot()
+
+    def set_recovery_program(self, name):
+        if not isinstance(name, str):
+            raise ValueError('recovery program must be a saved-program name')
+        with self._lock:
+            self.recovery_program = name.strip()[:80]
             self._save_config()
         return self.snapshot()
 
@@ -457,6 +471,7 @@ class SensorService:
                 "frame": frame if fresh else None,
                 "accel_g": accel_g,
                 "monitor": mon,
+                "recovery_program": self.recovery_program,
                 "guard": self.guard.snapshot(),
                 "gestures": {key:dict(value, label=GESTURE_LABELS[GESTURES.index(key)])
                              for key,value in self.gestures.items()},

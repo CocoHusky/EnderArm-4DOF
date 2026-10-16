@@ -193,6 +193,15 @@ class SensorServiceTests(unittest.TestCase):
             self.assertAlmostEqual(other.monitor.allowed_deg,12)
             self.assertEqual(other.monitor.reference,[0.0,0.0,1.0])
 
+    def test_recovery_route_persists_without_enabling_motion(self):
+        with tempfile.TemporaryDirectory() as td:
+            svc=self.make_service(td)
+            svc.set_recovery_program('Unwind linkage')
+            self.assertEqual(svc.snapshot()['recovery_program'], 'Unwind linkage')
+            other=SensorService(td+'/sensor_config.json','fake',swipe_feature=True)
+            self.assertEqual(other.recovery_program, 'Unwind linkage')
+            self.assertFalse(other.monitor.kill_enabled)
+
     def test_snapshot_hides_sensor_values_when_stale(self):
         with tempfile.TemporaryDirectory() as td:
             svc=self.make_service(td)

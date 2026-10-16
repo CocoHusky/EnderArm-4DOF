@@ -61,8 +61,10 @@ turns inward above the table, then follows the inner edge up to roughly
 world Z −67.8 mm. An inner-side start goes up directly instead of looping down.
 It does not replay recorded coordinates or rotate Motor Z.
 Each proposed step is at most 2 mm and checked against the live linkage branch,
-measured joint boundary, and table floor (world Z −135.6 mm). The planner
-keeps 0.5 mm extra table clearance. Short buffered segments travel continuously
+measured joint boundary, and correction floor (world Z −130.6 mm), 5 mm above
+the previous table limit. The planner keeps another 0.5 mm clearance; the
+upper endpoint remains −67.8 mm. Starts below the correction floor are refused.
+Short buffered segments travel continuously
 at 25% of the normal arm joint speed instead of stopping to settle at every
 waypoint. Normal speed is captured when correction starts; acceleration and
 corner limits remain gentle. This replaces the testing-only 2 mm/s tool feed.

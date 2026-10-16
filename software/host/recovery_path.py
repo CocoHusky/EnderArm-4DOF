@@ -2,6 +2,7 @@
 import math
 
 TABLE_Z_MIN = -135.6
+RECOVERY_Z_MIN = TABLE_Z_MIN + 5.0
 RECOVERY_TOP_Z = TABLE_Z_MIN / 2.0
 
 
@@ -13,8 +14,8 @@ def recovery_steps(radius, z, side_samples, feasible, step_mm=2.0):
     """
     if not all(math.isfinite(v) for v in (radius, z, step_mm)) or step_mm <= 0:
         raise ValueError('Recovery coordinates and step must be valid')
-    if radius <= 0 or z < TABLE_Z_MIN:
-        raise ValueError('Current pose is below the table limit or at the base axis')
+    if radius <= 0 or z < RECOVERY_Z_MIN:
+        raise ValueError('Current pose is below the correction height limit or at the base axis')
     samples = [(float(p[0]), float(p[1])) for p in side_samples
                if len(p) >= 2 and p[0] > 0 and math.isfinite(p[0]) and math.isfinite(p[1])]
     if not samples:
@@ -24,7 +25,7 @@ def recovery_steps(radius, z, side_samples, feasible, step_mm=2.0):
     inner, outer = min(band), max(band)
     # An inner-side start continues upward instead of descending the wrong edge.
     phase = 'up' if radius <= (inner+outer)/2 else 'down'
-    floor = TABLE_Z_MIN + 0.5
+    floor = RECOVERY_Z_MIN + 0.5
     for _ in range(600):
         if phase == 'up' and z >= RECOVERY_TOP_Z-0.5:
             return

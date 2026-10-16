@@ -21,7 +21,7 @@ from arm_camera import CAMERA
 from arm_remote import start_remote_access
 from features import FEATURES, DATA_DIR, SOURCE_DIR
 from workspace_map import sample_workspace
-from recovery_path import TABLE_Z_MIN, recovery_steps
+from recovery_path import RECOVERY_Z_MIN, recovery_steps
 from boundary_model import BOUNDARY_YIELD, build_boundary_poly
 
 # One authoritative geometry source.  robot_mapper.py owns controller I/O and
@@ -1993,7 +1993,7 @@ def _queue_incremental_recovery(speed=None):
             for n in range(21):
                 q=n/20
                 p=kinematic_state(a0+(a1-a0)*q,b0+(b1-b0)*q,fixed_c)["tool"]
-                if p["z"]<TABLE_Z_MIN-1e-4:
+                if p["z"]<RECOVERY_Z_MIN-1e-4:
                     return False
             candidate_plan['value']=plan
             return True
@@ -2613,7 +2613,7 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
       <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label><button id="sensorAck" hidden>Reset fault</button></div></details>
-      <details><summary>Correction path</summary><div class="muted">Relative swoop · 2 mm steps · Z stays above −135.6 mm.</div></details>
+      <details><summary>Correction path</summary><div class="muted">Relative swoop · 2 mm steps · Z stays above −130.6 mm.</div></details>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>

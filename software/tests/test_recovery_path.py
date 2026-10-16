@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 
-from recovery_path import RECOVERY_TOP_Z, TABLE_Z_MIN, recovery_steps
+from recovery_path import RECOVERY_TOP_Z, RECOVERY_Z_MIN, TABLE_Z_MIN, recovery_steps
 from sensor_service import SensorService
 
 
@@ -35,7 +35,7 @@ class RecoveryPathTests(unittest.TestCase):
             'MotionCancelled': type('Cancelled', (Exception,), {}),
             'plan_world_target': lambda *_args, **_kwargs: {'A': 11, 'B': 21},
             'clip_xy_path': lambda *_args: (11, 21, False),
-            'TABLE_Z_MIN': TABLE_Z_MIN, 'check_stop': lambda: None,
+            'RECOVERY_Z_MIN': RECOVERY_Z_MIN, 'check_stop': lambda: None,
             '_gcode': lambda command, **_kwargs: commands.append(command),
             '_sync_state_from_arm_robot': lambda: None,
         }
@@ -86,7 +86,9 @@ class RecoveryPathTests(unittest.TestCase):
         points = [start, *recovery_steps(*start, self.samples(), self.feasible)]
         self.assertAlmostEqual(points[-1][1], RECOVERY_TOP_Z, delta=.5)
         self.assertTrue(all(math.dist(a, b) <= 2.000001 for a, b in zip(points, points[1:])))
-        self.assertGreaterEqual(min(p[1] for p in points), TABLE_Z_MIN)
+        self.assertGreaterEqual(min(p[1] for p in points), RECOVERY_Z_MIN+.5)
+        self.assertEqual(RECOVERY_Z_MIN, TABLE_Z_MIN+5)
+        self.assertEqual(RECOVERY_TOP_Z, -67.8)
         bottom = min(range(len(points)), key=lambda i: points[i][1])
         self.assertTrue(all(b[0] <= a[0] for a, b in zip(points[:bottom], points[1:bottom+1])))
         self.assertLess(min(p[0] for p in points), start[0]-50)
@@ -104,6 +106,8 @@ class RecoveryPathTests(unittest.TestCase):
         self.assertTrue(all(math.dist((220, -75), p) <= 2.00001 for p in second[:1]))
 
     def test_below_table_and_missing_workspace_are_rejected(self):
+        with self.assertRaises(ValueError):
+            list(recovery_steps(179, RECOVERY_Z_MIN-.1, self.samples(), self.feasible))
         with self.assertRaises(ValueError):
             list(recovery_steps(179, -136, self.samples(), self.feasible))
         with self.assertRaises(ValueError):

@@ -164,6 +164,8 @@ class ArmRobot:
         self.gcode = self.printer.lookup_object("gcode")
         self.gcode.register_command("ARM_HOME", self.cmd_ARM_HOME,
                                     desc="Home linear slide, then arm joints")
+        self.gcode.register_command("ARM_HOME_GUARDED", self.cmd_ARM_HOME_GUARDED,
+                                    desc="Bounded homing steps retaining a known reference")
         self.gcode.register_command("ARM_HOME_LINEAR", self.cmd_ARM_HOME_LINEAR,
                                     desc="Home only linear slide")
         self.gcode.register_command("ARM_LINEAR_MODE", self.cmd_ARM_LINEAR_MODE,
@@ -795,6 +797,8 @@ class ArmRobot:
             "slide_corner": self.slide_corner,
             "tune_pending": self.pending_tune is not None,
             "home_timing": getattr(self, "home_timing", {}),
+            "guarded_home_version": 1,
+            "guarded_home": getattr(self, "guarded_home", {}),
         }
 
     def _prepare_manual(self):
@@ -932,6 +936,103 @@ class ArmRobot:
         self._release_xy(3.5)
         self._register_all()
         gcmd.respond_info("ARM_HOME_TEST X/Y complete in %.3fs" % elapsed)
+
+    def _check_guarded_home_segment(self, axis, position, target):
+        if axis not in ('A','B'):
+            return
+        a0,b0=position[:2]
+        a1,b1=(target,b0) if axis == 'A' else (a0,target)
+        self._check_joint_path(a0,b0,a1,b1)
+        for n in range(21):
+            t=n/20.
+            qx=HOME_AC_DEGREES+a0+(a1-a0)*t-self.home_a
+            qy=HOME_QY_DEGREES+b0+(b1-b0)*t-self.home_b
+            if full_linkage_kinematics(qx,qy).tool.z < -130.6:
+                raise self.gcode.error("Guarded Home segment violates table clearance")
+
+    def cmd_ARM_HOME_GUARDED(self, gcmd):
+        """No coordinate reset until a real endstop touch and release.
+
+        Each call physically completes at most 0.5 degrees/mm of seek. The
+        host can run ordinary referenced correction between calls. This is
+        deliberately unavailable after shutdown, skipped steps or lost home.
+        """
+        if not self.homed or self.dance_active:
+            raise gcmd.error("Guarded Home requires a trusted idle home reference")
+        action=gcmd.get('ACTION', 'STEP').upper()
+        if action == 'BEGIN':
+            self.guarded_home={"active":True,"done":[],"travel":{},"axis":""}
+            return
+        session=getattr(self, 'guarded_home', {})
+        if not session.get('active'):
+            raise gcmd.error("Begin guarded Home first")
+        axes={'A':self.x,'B':self.y,'C':self.z}
+        if self.linear_enabled:
+            axes['D']=self.slide
+        if action == 'FINISH':
+            if set(session['done']) != set(axes):
+                raise gcmd.error("Guarded Home has unfinished axes")
+            session['active']=False
+            self.home_timing={"stage":"complete","guarded":True}
+            return
+        if action != 'STEP':
+            raise gcmd.error("Guarded Home action must be BEGIN, STEP or FINISH")
+        axis=gcmd.get('AXIS', '').upper()
+        if axis not in axes or axis in session['done']:
+            raise gcmd.error("Invalid or completed guarded Home axis")
+        step=gcmd.get_float('STEP', .5, above=0., maxval=.5)
+        speed=min(gcmd.get_float('SPEED', 10., above=0.), 10.)
+        joint=axes[axis]
+        session['axis']=axis
+        travel=session['travel'].get(axis,0.)
+        limit=250. if axis == 'D' else (320. if axis == 'C' else 220.)
+        if travel+step > limit:
+            raise gcmd.error("Guarded Home travel limit exceeded")
+        self.toolhead.wait_moves()
+        # Copy registered coordinates back before unregistering. They remain
+        # calibrated throughout the short seek, including a no-trigger step.
+        position=self._joint_position()
+        release=session.get('release')
+        if release and release['axis'] != axis:
+            raise gcmd.error("Finish the active guarded release first")
+        distance=min(step,release['remaining']) if release else -step
+        self._check_guarded_home_segment(axis,position,position['ABCD'.index(axis)]+distance)
+        self._prepare_manual()
+        try:
+            for item,value in zip((self.x,self.y,self.z,self.slide),position):
+                item.do_set_position(value)
+            endstops=joint.rail.get_endstops()
+            if not endstops:
+                raise gcmd.error("Guarded Home requires a physical endstop")
+            if release:
+                joint.do_move(joint.commanded_pos+distance,speed,60.,True)
+                self.toolhead.wait_moves()
+                release['remaining']-=distance
+                if release['remaining'] <= 1e-6:
+                    if any(es.query_endstop(self.toolhead.get_last_move_time())
+                           for es,_name in endstops):
+                        raise gcmd.error("Guarded Home endstop failed to release")
+                    joint.do_set_position(2.5 if axis == 'C' else (0. if axis == 'D' else 3.5))
+                    session['done'].append(axis)
+                    session.pop('release')
+            else:
+                triggered=all(es.query_endstop(self.toolhead.get_last_move_time())
+                              for es,_name in endstops)
+                if not triggered:
+                    joint.do_homing_move(joint.commanded_pos-step,speed,60.,True,True,False)
+                    triggered=all(es.query_endstop(self.toolhead.get_last_move_time())
+                                  for es,_name in endstops)
+                    session['travel'][axis]=travel+step
+                if triggered:
+                    session['release']={'axis':axis,'remaining':
+                        7.5 if axis == 'C' else (3. if axis == 'D' else 5.25)}
+        except Exception:
+            self.homed=False
+            session['active']=False
+            raise
+        finally:
+            self._register_all()
+        self.home_timing={"stage":"guarded_seek","axis":axis}
 
     def cmd_ARM_HOME(self, gcmd):
         start = self.reactor.monotonic()

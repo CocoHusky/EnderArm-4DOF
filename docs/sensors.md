@@ -96,8 +96,9 @@ Enabled vibration/impact/Z and tilt KILL checks also run during Home and all
 other motion. A historical latch does not suppress a new stop request: an
 active dangerous condition can repeat KILL at most every 250 ms. Ordinary tilt
 KILL retains its persistence timer; the hard angle limit does not wait for it.
-During manual or automatic homing, sustained tilt requests KILL even when the
-selected normal-motion action is Correct; a scoop is not attempted mid-home.
+Legacy continuous homing still requests KILL on sustained tilt, even when the
+selected normal-motion action is Correct. The new guarded controller path below
+is the exception; it is pending supervised physical commissioning.
 Before starting either Home path in Correct mode, the host checks fresh valid
 tilt feedback. If already above the configured tilt limit, it drains queued
 motion and runs the existing relative scoop at 25% normal speed, then verifies
@@ -107,6 +108,31 @@ for manual recovery; unknown coordinates are never used for a scoop. A normal
 pose may still start Home to recover its reference. Failure during the pre-home
 correction cancels Home and requests emergency KILL. Hard-angle and vibration
 KILL remain active throughout pre-home correction.
+
+### Guarded Home: stop, correct, resume (pending commissioning)
+
+Correct-mode Home now requires controller capability `guarded_home_version=1`
+and a trusted existing home reference, Boundary On, and no skipping/KILL fault.
+Host and controller changes must be installed together. An older controller is
+refused rather than silently falling back to continuous homing in Correct mode.
+Initial homing after power loss/shutdown still uses KILL mode/manual recovery;
+the system never invents coordinates to enable a scoop.
+
+`ARM_HOME_GUARDED` performs physically completed seeks of at most 0.5 degrees
+(0.5 mm for the rail), at up to 10 degrees/s, without zeroing the initial joint
+coordinates. Real endstop touch and release establish each calibrated coordinate.
+Measured A/B boundary and table clearance are checked for seek/release segments.
+The host checks fresh tilt between steps. In Correct mode it pauses seeking,
+executes the referenced scoop, verifies recovery, then restarts the switch
+sequence. Previously completed axes are rehomed because the scoop moves A/B.
+No homing steps are queued during correction. At most two corrections and
+240 seconds are allowed; failures cancel Home and request KILL.
+
+Ordinary tilt detection does not KILL this guarded mode before the host can
+correct. Hard-angle and vibration/impact/Z KILLs remain active and cancel it.
+This is a stop at a small step boundary, not an asynchronous mid-step abort.
+Hardware-free tests do not validate physical clearance, endstop timing or
+stopping distance. Do not deploy this path without supervised commissioning.
 These software checks require
 fresh healthy feedback and cannot guarantee a stop before damage.
 

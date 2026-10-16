@@ -90,6 +90,7 @@ home_request_lock = threading.Lock()
 home_in_progress = False
 homing_motion_active = False
 prehome_correction_active = False
+guarded_home_active = False
 stop_event = threading.Event()
 _axes_registered = False
 ROBOT_CORNER_VEL = 6.0
@@ -1129,7 +1130,7 @@ def precise_home(clear_stop=True):
     finally:
         homing_motion_active=False
 
-def _correct_before_home(clear_stop=True):
+def _correct_before_home(clear_stop=True, allow_correction=True):
     """Correct a known pose before ARM_HOME discards its joint reference."""
     if SENSOR is None or not SENSOR.monitor.enabled or not SENSOR.correct_enabled:
         return
@@ -1142,6 +1143,8 @@ def _correct_before_home(clear_stop=True):
         raise RuntimeError("Home refused: valid tilt feedback is required in Correct mode")
     if angle<=SENSOR.monitor.allowed_deg:
         return
+    if not allow_correction:
+        raise RuntimeError("Repeated tilt during guarded Home; manual recovery required")
     if angle>=SENSOR.hard_kill_deg:
         _emergency_kill("Home refused: tilt reached the hard KILL limit")
         raise RuntimeError("Tilt is at the KILL limit")
@@ -1167,6 +1170,7 @@ def _correct_before_home(clear_stop=True):
         check_stop()
         if not SENSOR.clear_recovered_tilt():
             raise RuntimeError("Tilt did not settle after pre-home correction")
+        return True
     except Exception:
         _emergency_kill("Pre-home tilt correction failed; Home cancelled")
         raise
@@ -1176,6 +1180,47 @@ def _correct_before_home(clear_stop=True):
         _gcode(f"ARM_TUNE ARM_VELOCITY={av:.4f} ARM_ACCEL={aa:.4f} "
                f"ARM_CORNER={ac:.4f} SLIDE_VELOCITY={sv:.4f} "
                f"SLIDE_ACCEL={sa:.4f} SLIDE_CORNER={sc:.4f}",timeout=5)
+
+def _run_guarded_home():
+    """Check tilt between physically completed, referenced homing steps."""
+    global guarded_home_active
+    status=_arm_robot_status()
+    if status.get("guarded_home_version") != 1:
+        raise RuntimeError("Correct-mode Home requires the guarded-home controller update")
+    _sync_state_from_arm_robot()
+    if (not state.get("homed") or state.get("home_required") or SENSOR.guard.fault
+            or SENSOR.hard_kill_latched or not state.get("boundary_enabled",True)):
+        raise RuntimeError("Correct-mode Home needs a trusted reference; use KILL mode for initial/manual recovery homing")
+    guarded_home_active=True
+    attempts=0
+    deadline=time.monotonic()+240
+    try:
+        _gcode("ARM_HOME_GUARDED ACTION=BEGIN",timeout=5)
+        axes=['A','B','C']+(['D'] if state.get("linear_hardware") else [])
+        while True:
+            check_stop()
+            if time.monotonic()>deadline:
+                raise RuntimeError("Guarded Home exceeded its time limit")
+            if _correct_before_home(False,attempts<2):
+                attempts+=1
+                # A scoop moves previously homed A/B axes too: restart the
+                # switch sequence, not just the interrupted axis.
+                _gcode("ARM_HOME_GUARDED ACTION=BEGIN",timeout=5)
+            session=_arm_robot_status().get("guarded_home",{})
+            if not session.get("active"):
+                raise RuntimeError("Guarded Home controller session lost")
+            pending=[axis for axis in axes if axis not in session.get("done",[])]
+            if not pending:
+                _gcode("ARM_HOME_GUARDED ACTION=FINISH",timeout=5)
+                break
+            state["message"]="Guarded Home — "+pending[0]
+            _gcode(f"ARM_HOME_GUARDED ACTION=STEP AXIS={pending[0]} STEP=0.5 SPEED=10",timeout=8)
+            _sync_state_from_arm_robot()
+    except Exception:
+        _emergency_kill("Guarded Home stopped; reference must be recovered")
+        raise
+    finally:
+        guarded_home_active=False
 
 def _precise_home_pass(clear_stop=True):
     """Original home definition executed locally by Klipper.
@@ -1188,6 +1233,14 @@ def _precise_home_pass(clear_stop=True):
     """
     if clear_stop:
         stop_event.clear()
+    correct_home=SENSOR is not None and SENSOR.monitor.enabled and SENSOR.correct_enabled
+    if correct_home:
+        _run_guarded_home()
+    else:
+        _legacy_home_seek()
+    _finish_home_reference()
+
+def _legacy_home_seek():
     if _printer_info().get("state") in ("shutdown","error"):
         try:
             _gcode("FIRMWARE_RESTART", timeout=6)
@@ -1200,6 +1253,8 @@ def _precise_home_pass(clear_stop=True):
     home_accel=100.0
     state["message"]=f"Homing — continuous Klipper pass ({home_speed:.0f}°/s)"
     _gcode(f"ARM_HOME SPEED={home_speed:.1f} ACCEL={home_accel:.1f}", timeout=180)
+
+def _finish_home_reference():
     ox,oy,oz=3.5,3.5,2.5
     state.update(
         x=ox,y=oy,z=oz,linear_y=0.0,homed=True,home_required=False,
@@ -2275,7 +2330,7 @@ def _tilt_correction_worker(reason):
 def _request_tilt_correction(reason):
     """Start at most one optional correction worker after a confirmed fault."""
     global correction_thread
-    if prehome_correction_active:
+    if prehome_correction_active or guarded_home_active:
         return
     if home_in_progress or homing_motion_active:
         _emergency_kill("confirmed tilt during homing; scoop correction is unavailable")
@@ -5672,7 +5727,7 @@ if __name__=="__main__":
             on_correct=_request_tilt_correction,
             can_run_program=_sensor_can_run_program,
             run_program=_sensor_run_program,
-            is_homing=lambda:(home_in_progress or homing_motion_active) and not prehome_correction_active,
+            is_homing=lambda:(home_in_progress or homing_motion_active) and not (prehome_correction_active or guarded_home_active),
         )
         SENSOR.start()
     try:

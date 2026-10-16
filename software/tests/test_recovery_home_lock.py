@@ -131,6 +131,7 @@ class RecoveryHomeLockTests(unittest.TestCase):
                         and n.name == '_request_tilt_correction')
         kills = []
         namespace = {'home_in_progress': True, 'prehome_correction_active': False,
+                     'guarded_home_active': False,
                      '_emergency_kill': kills.append}
         exec(compile(ast.Module(body=[function], type_ignores=[]), '<home-correction>', 'exec'), namespace)
         namespace['_request_tilt_correction']('tilt during Home')

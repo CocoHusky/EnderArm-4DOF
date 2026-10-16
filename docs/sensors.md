@@ -53,19 +53,24 @@ changing tabs does not disable it. Save route edits before using gestures.
 ## Tilt, impact, and orientation checks
 
 Calibrate the Triplate while the arm is stationary in its normal mounted pose.
-**Monitor tilt** and **KILL on confirmed fault** are separate switches; both
-must be on before a sustained tilt sends KILL. A 15° limit with 0.75 seconds
-of persistence means the reading has to stay over 15° for 0.75 seconds.
+Set the tilt limit and persistence, choose Correct or KILL, then switch
+protection On. The separate KILL angle defaults to 50° and overrides correction.
+Changes save automatically.
 
 Tilt uses a short vector filter. Samples outside 0.75–1.25 g are ignored, so a
 large bump is not treated as a gravity direction. The filter and persistence
 reduce nuisance trips but do not make this a hardware safety system.
 
-The **Lock-up recovery route** picker stores the name of a route created in
-Programmed movements. It does not move the arm automatically. A KILL puts
-Klipper into an emergency state, so it cannot also run a recovery route. Decide
-on a separate earlier recovery threshold and test that route slowly before
-adding automatic recovery behavior.
+Successful correction clears its tilt fault after fresh readings confirm a
+normal pose. Successful Home also clears a normal tilt fault, including a
+previous KILL latch. A bad or stale reading stays faulted. Reset fault is
+available under Calibration & filter for manual troubleshooting.
+
+The live X/Y/Z graph receives every serial sample through a buffered stream.
+Firmware 0.4.0 targets a 10 ms acquisition interval, with compact acceleration
+packets between full status frames. The reference board delivered about
+79 samples/s at 115200 baud, with no host sample gaps during a five-second check.
+The UI shows measured rate and buffer gaps rather than assuming the target rate.
 
 Start with LED feedback only. Each impact-protection checkbox is separate;
 Apply commits the settings. These options reset OFF when the host restarts.
@@ -83,9 +88,9 @@ For deviation from a mounted pose, use the separate **Triplate orientation**
 calibration and tilt controls. Calibrate only while stationary in the normal
 mounted position.
 
-KILL requires controller recovery and rehoming. Acknowledge clears the sensor's
-fault latch, not Klipper's emergency state. At roughly 20 Hz, this USB/software
-system can miss a brief impact. It is not a hardware safety interlock and does
+KILL requires controller recovery and rehoming. Reset fault clears the sensor's
+latch, not Klipper's emergency state. This USB/software system can still miss
+a brief impact. It is not a hardware safety interlock and does
 not guarantee damage prevention.
 
 ## Test status

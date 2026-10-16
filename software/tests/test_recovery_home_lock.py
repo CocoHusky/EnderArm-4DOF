@@ -50,6 +50,7 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
         '_program_running': lambda: False,
         'SENSOR': SimpleNamespace(
             monitor=SimpleNamespace(kill_enabled=False), correct_enabled=True,
+            clear_recovered_tilt=lambda: True,
             recovery_program='Known recovery'),
         '_start_tilt_warning_flash': lambda: (None, None),
         '_queue_saved_linkage_recovery': queue_saved,
@@ -68,6 +69,14 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
 
 
 class RecoveryHomeLockTests(unittest.TestCase):
+    def test_home_does_not_launch_a_correction_worker(self):
+        source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
+        function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
+                        and n.name == '_request_tilt_correction')
+        namespace = {'home_in_progress': True}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), '<home-correction>', 'exec'), namespace)
+        namespace['_request_tilt_correction']('tilt during Home')
+
     def test_generic_recovery_holds_base_and_rail(self):
         source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)

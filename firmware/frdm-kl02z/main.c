@@ -8,8 +8,9 @@
 #include "fsl_os_abstraction.h"
 #include "fsl_port_hal.h"
 
-#define FW_VERSION "0.3.0"
-#define STREAM_PERIOD_MS 50U
+#define FW_VERSION "0.4.0"
+#define STREAM_PERIOD_MS 10U
+#define TELEMETRY_PERIOD_MS 100U
 #define ACCEL_REG_WHO_AM_I 0x0dU
 #define ACCEL_REG_OUT_X_MSB 0x01U
 #define MMA8451_WHO_AM_I 0x1aU
@@ -395,6 +396,10 @@ int main(void)
     slider_init();
 
     uint32_t next_ms = monotonic_ms();
+    uint32_t next_full_ms = next_ms;
+    uint32_t next_touch_ms = next_ms;
+    slider_sample_t slider;
+    memset(&slider, 0, sizeof(slider));
     while (1)
     {
         command_poll();
@@ -410,9 +415,21 @@ int main(void)
         /* A transient I2C read failure is reported unhealthy but retried on
          * the next sample. Initial identity failure remains fail-closed. */
         bool read_ok = g_accel_ok && accel_read_mg(&ax, &ay, &az);
-        slider_sample_t slider = slider_read(now);
-        if (read_ok) update_led_feedback(ax,ay,az,slider,now);
-        else if (strcmp(g_mode,"manual")) led_apply("off");
+        if ((int32_t)(now-next_touch_ms) >= 0)
+        {
+            next_touch_ms = now + 50U;
+            slider = slider_read(now);
+            if (read_ok) update_led_feedback(ax,ay,az,slider,now);
+            else if (strcmp(g_mode,"manual")) led_apply("off");
+        }
+        if ((int32_t)(now-next_full_ms) < 0)
+        {
+            PRINTF("{\"a\":[%ld,%ld,%ld],\"s\":%lu,\"t\":%lu,\"h\":%u}\r\n",
+                   (long)ax,(long)ay,(long)az,(unsigned long)g_seq++,
+                   (unsigned long)now,read_ok?1U:0U);
+            continue;
+        }
+        next_full_ms = now + TELEMETRY_PERIOD_MS;
 
         PRINTF("{\"v\":1,\"device\":\"FRDM-KL02Z\",\"fw\":\"" FW_VERSION
                "\",\"seq\":%lu,\"ms\":%lu,\"accel_mg\":[%ld,%ld,%ld],"

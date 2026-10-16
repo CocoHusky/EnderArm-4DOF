@@ -262,7 +262,7 @@ class SensorService:
             self._cancel_swipe(str(exc))
 
     def _run(self):
-        while not self._stop.wait(0.025):
+        while not self._stop.wait(0.005):
             link = self.transport.snapshot()
             self._update_guard_led(link)
             reconnects = int(link.get("reconnects") or 0)
@@ -406,6 +406,21 @@ class SensorService:
         self.monitor.acknowledge()
         self.guard.acknowledge()
         return self.snapshot()
+
+    def clear_recovered_tilt(self, after_home=False):
+        """Clear a tilt latch only after fresh, normal accelerometer feedback."""
+        sample = self.snapshot()
+        mon = sample['monitor']
+        if ((self.hard_kill_latched and not after_home)
+                or not sample.get('fresh') or mon.get('tilt_deg') is None
+                or mon.get('sample_rejected')
+                or mon['tilt_deg'] > self.monitor.allowed_deg):
+            return False
+        with self._lock:
+            self.monitor.acknowledge()
+            self.hard_kill_latched = False
+            self.countdown_error = None
+        return True
 
     def configure_guard(self, options):
         if not isinstance(options, dict):

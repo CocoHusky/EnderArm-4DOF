@@ -94,7 +94,7 @@ class TiltMonitor:
         if self._last_filter_at is None:
             alpha=1.0
         else:
-            elapsed=max(0.02,min(0.25,now-self._last_filter_at))
+            elapsed=max(0.001,min(0.25,now-self._last_filter_at))
             alpha=1.0-math.exp(-elapsed/self.filter_s)
         blended=[(1.0-alpha)*old+alpha*new for old,new in zip(previous,sample)]
         self._filtered,_=_unit(blended)

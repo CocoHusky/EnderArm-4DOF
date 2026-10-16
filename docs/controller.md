@@ -73,8 +73,10 @@ after the ordinary tilt fault has latched. It does not wait for the ordinary
 tilt persistence timer. Turning protection Off disables both tilt actions.
 
 Recovery refuses to run without a valid home reference. A running route is
-stopped before correction begins. Successful correction leaves the existing
-home reference valid and normal motion available. If
+stopped before correction begins. Successful correction clears the tilt latch
+after normal, fresh feedback and leaves the existing home reference valid.
+Successful Home also clears the tilt latch if the measured pose is normal;
+hard-KILL faults require this Home step. If
 it is stopped or errors after starting, the reference is treated as uncertain:
 normal motion is locked until the operator explicitly presses Home, and
 automatic homing cannot clear that lock. This is a modeled recovery path, not a

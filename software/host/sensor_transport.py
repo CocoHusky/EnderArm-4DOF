@@ -3,13 +3,14 @@ import json
 import math
 import threading
 import time
+from collections import deque
 
 
 class SensorProtocolError(ValueError):
     pass
 
 
-def parse_sensor_line(line):
+def parse_sensor_line(line, previous=None):
     if isinstance(line, bytes):
         line=line.decode("utf-8","strict")
     try:
@@ -18,6 +19,14 @@ def parse_sensor_line(line):
         raise SensorProtocolError(f"invalid JSON: {exc}") from exc
     if not isinstance(obj,dict):
         raise SensorProtocolError("sensor frame must be a JSON object")
+    if 'a' in obj:
+        if not isinstance(previous,dict):
+            raise SensorProtocolError('compact sample needs a full sensor frame first')
+        if (type(obj.get('s')) is not int or obj['s']<0 or type(obj.get('t')) is not int
+                or obj['t']<0 or type(obj.get('h')) is not int or obj['h'] not in (0,1)):
+            raise SensorProtocolError('invalid compact sample counters or health')
+        obj={**previous,'seq':obj['s'],'ms':obj['t'],'accel_mg':obj['a'],
+             'health':{**previous.get('health',{}),'accel':bool(obj['h'])}}
     required=("v","device","seq","ms","accel_mg","slider","led","health")
     missing=[key for key in required if key not in obj]
     if missing:
@@ -64,6 +73,38 @@ class SensorSerial:
         self._error=None
         self._malformed=0
         self._reconnects=0
+        self._samples=deque(maxlen=4096)
+        self._sample_id=0
+
+    def _record_frame(self, frame, now):
+        with self._lock:
+            self._frame=frame
+            self._last_rx_monotonic=now
+            self._connected=True
+            self._error=None
+            self._sample_id+=1
+            self._samples.append({'id':self._sample_id,'t':now,
+                                  'seq':frame['seq'],'ms':frame['ms'],
+                                  'accel_g':[v/1000.0 for v in frame['accel_mg']]})
+
+    def samples_since(self, cursor=0, limit=512):
+        """Return every received sample, with bounded replay for slow clients."""
+        with self._lock:
+            samples=list(self._samples)
+        if not samples:
+            return {'samples':[],'cursor':cursor,'dropped':0,'source_hz':0}
+        reset=cursor>samples[-1]['id']
+        if reset:
+            cursor=0
+        if not cursor:
+            samples=samples[-limit:]
+        batch=[s for s in samples if s['id']>cursor][:limit]
+        dropped=max(0,samples[0]['id']-cursor-1) if cursor else 0
+        recent=[s for s in samples if s['t']>=samples[-1]['t']-2]
+        span=recent[-1]['t']-recent[0]['t']
+        rate=(len(recent)-1)/span if span>0 else 0
+        return {'samples':batch,'cursor':batch[-1]['id'] if batch else cursor,
+                'dropped':dropped,'source_hz':round(rate,1),'reset':reset}
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -101,18 +142,14 @@ class SensorSerial:
                         if not raw:
                             continue
                         try:
-                            frame=parse_sensor_line(raw)
+                            frame=parse_sensor_line(raw,self._frame)
                         except Exception as exc:
                             with self._lock:
                                 self._malformed+=1
                                 self._error=str(exc)
                             continue
                         now=time.monotonic()
-                        with self._lock:
-                            self._frame=frame
-                            self._last_rx_monotonic=now
-                            self._connected=True
-                            self._error=None
+                        self._record_frame(frame,now)
             except Exception as exc:
                 self._set_link(False,exc)
                 if self._stop.wait(1.0):

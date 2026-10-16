@@ -1148,6 +1148,13 @@ def precise_home(clear_stop=True):
     # coordinates. Re-registering here caused transient zero frames.
     _apply_runtime_tuning(force=True)
     state["message"]="Home complete"
+    if SENSOR is not None:
+        try:
+            _settled_recovery_tilt()
+            SENSOR.clear_recovered_tilt(after_home=True)
+        except RuntimeError:
+            # Home remains valid; stale or abnormal tilt stays visible.
+            pass
 
 def ensure_homed_for_motion():
     """Restore the physical reference before accepting a motion command."""
@@ -2152,6 +2159,8 @@ def _tilt_correction_worker(reason):
 
             _queue_incremental_recovery()
             check_stop()
+            if not SENSOR.clear_recovered_tilt():
+                raise RuntimeError("Tilt did not remain normal after correction")
             state.update(homed=True,home_required=False)
             state["message"]="Tilt correction complete — normal motion available"
     except MotionCancelled:
@@ -2189,6 +2198,9 @@ def _tilt_correction_worker(reason):
 def _request_tilt_correction(reason):
     """Start at most one optional correction worker after a confirmed fault."""
     global correction_thread
+    if home_in_progress:
+        # Home establishes the reference; verify and clear tilt afterward.
+        return
     with correction_thread_lock:
         if correction_thread and correction_thread.is_alive():
             return
@@ -2565,6 +2577,8 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   <div id="sensorPanel" class="fullPanel debugGrid">
     <section class="card debugCard">
       <div class="cardTitle"><div><h2>Live accelerometer</h2><div class="muted">FRDM-KL02Z · 3 axes · 1 g ≈ gravity at rest</div></div><span id="sensorLinkBadge" class="badge bad">DISCONNECTED</span></div>
+      <div id="sensorStreamRate" class="muted">Connecting stream…</div>
+      <canvas id="sensorAccelGraph" width="900" height="220" aria-label="Live accelerometer X, Y and Z in g over the last ten seconds"></canvas>
       <table class="metricTable"><tbody>
         <tr><td>Device</td><td id="sensorDevice">—</td></tr>
         <tr><td>Firmware</td><td id="sensorFw">—</td></tr>
@@ -2586,8 +2600,7 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
         <div id="sensorSaveStatus" class="muted" role="status" aria-live="polite"></div>
       </div>
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
-      <button id="sensorAck" hidden>Clear fault</button>
-      <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div></details>
+      <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label><button id="sensorAck" hidden>Reset fault</button></div></details>
       <details><summary>Correction path</summary><div class="muted">Relative swoop · 2 mm steps · Z stays above −135.6 mm.</div></details>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
@@ -3568,6 +3581,7 @@ function renderSensor(sensor){
 }
 async function refreshSensor(){
   if(activeView!=='sensors')return;
+  if(sensorStreamLive)return;
   try{renderSensor(await api('/sensor'))}catch(e){const b=$('sensorLinkBadge');if(b){b.textContent='DISCONNECTED';b.className='badge bad'}}
 }
 function rs(s){
@@ -4357,6 +4371,48 @@ async function bootLiveUI(){
 bootLiveUI();
 
 let activeView='control',workspaceLoaded=false,workspaceTransform=null,workspaceData=null,selectedWorld=null,worldPlan=null,worldMoveInFlight=false,debugWindowSeconds=300;
+let sensorStream=null,sensorStreamLive=false,sensorGraphSamples=[],sensorGraphRaf=0,sensorStreamDropped=0;
+function drawSensorStream(){
+  sensorGraphRaf=0;
+  const canvas=$('sensorAccelGraph'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  const colors=['#68baff','#73dda6','#f1bd68'];
+  const last=sensorGraphSamples.at(-1);
+  ctx.font='12px system-ui';
+  for(let i=0;i<3;i++){ctx.fillStyle=colors[i];ctx.fillText(['X','Y','Z'][i],14+i*32,18)}
+  if(!last)return;
+  const range=Math.max(1.2,...sensorGraphSamples.flatMap(s=>s.accel_g.map(Math.abs)));
+  const y=v=>30+(h-50)*(1-v/range)/2;
+  ctx.strokeStyle='#293542';ctx.beginPath();ctx.moveTo(0,y(0));ctx.lineTo(w,y(0));ctx.stroke();
+  ctx.fillStyle='#8d98a4';ctx.fillText(range.toFixed(1)+' g',w-55,18);ctx.fillText('10 s',8,h-6);ctx.fillText('now',w-35,h-6);
+  for(let axis=0;axis<3;axis++){
+    ctx.strokeStyle=colors[axis];ctx.lineWidth=1.5;ctx.beginPath();
+    sensorGraphSamples.forEach((s,i)=>{const x=w*(1-(last.t-s.t)/10),py=y(s.accel_g[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
+    ctx.stroke();
+  }
+}
+function startSensorStream(){
+  if(sensorStream)return;
+  sensorStream=new EventSource('/sensor_stream');
+  sensorStream.onmessage=event=>{
+    const packet=JSON.parse(event.data);
+    sensorStreamLive=true;
+    renderSensor(packet.sensor);
+    sensorStreamDropped+=packet.dropped||0;
+    if(packet.reset||packet.cursor<(sensorGraphSamples.at(-1)?.id||0))sensorGraphSamples=[];
+    const previous=sensorGraphSamples.at(-1)?.id||0;
+    sensorGraphSamples.push(...packet.samples.filter(s=>s.id>previous));
+    const last=sensorGraphSamples.at(-1);
+    if(last)sensorGraphSamples=sensorGraphSamples.filter(s=>s.t>=last.t-10).slice(-10000);
+    $('sensorStreamRate').textContent=(packet.sensor.fresh?packet.source_hz:0)+' samples/s · '+sensorGraphSamples.length+' points · X / Y / Z'+(sensorStreamDropped?' · '+sensorStreamDropped+' missed':'');
+    if(!sensorGraphRaf)sensorGraphRaf=requestAnimationFrame(drawSensorStream);
+  };
+  sensorStream.onerror=()=>{sensorStreamLive=false;$('sensorStreamRate').textContent='Stream reconnecting…'};
+}
+function stopSensorStream(){
+  if(sensorStream)sensorStream.close();
+  sensorStream=null;sensorStreamLive=false;
+}
 function setView(v){
   activeView=v;
   document.querySelector('.dashboard').style.display=(v==='control')?'grid':'none';
@@ -4368,7 +4424,7 @@ function setView(v){
   ['tabControl','tabWorkspace','tabProgram','tabSensors','tabDebug','tabSettings'].forEach(id=>$(id).classList.remove('active'));
   $({control:'tabControl',workspace:'tabWorkspace',program:'tabProgram',sensors:'tabSensors',debug:'tabDebug',settings:'tabSettings'}[v]).classList.add('active');
   if(v==='debug')refreshDebug();
-  if(v==='sensors')refreshSensor();
+  if(v==='sensors'){refreshSensor();startSensorStream()}else stopSensorStream();
   if(v==='workspace'){if(!workspaceLoaded)loadWorkspace();else drawWorkspace()}
   if(v==='settings')refreshSettingsEndstops();
 }
@@ -4845,6 +4901,37 @@ class Handler(BaseHTTPRequestHandler):
             DIAG.latency("http_handler",time.perf_counter()-self._request_started,{"path":self.path,"code":code})
     def do_GET(self):
         self._request_started=time.perf_counter()
+        if self.path=='/sensor_stream':
+            if not FEATURES['sensors'] or SENSOR is None:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header('Content-Type','text/event-stream')
+            self.send_header('Cache-Control','no-store')
+            self.send_header('X-Accel-Buffering','no')
+            self.end_headers()
+            try:
+                cursor=int(self.headers.get('Last-Event-ID','0'))
+            except ValueError:
+                cursor=0
+            sent=0.0
+            deadline=time.monotonic()+60
+            try:
+                while time.monotonic()<deadline:
+                    packet=SENSOR.transport.samples_since(cursor)
+                    now=time.monotonic()
+                    if packet['samples'] or now-sent>=.25:
+                        cursor=packet['cursor']
+                        packet['sensor']=SENSOR.snapshot()
+                        data=json.dumps(packet,separators=(',',':'))
+                        self.wfile.write(f'retry: 500\nid: {cursor}\ndata: {data}\n\n'.encode())
+                        self.wfile.flush()
+                        sent=now
+                    time.sleep(.025)
+            except (BrokenPipeError,ConnectionResetError,OSError):
+                pass
+            self.close_connection=True
+            return
         if self.path=='/controller-stream':
             # Keep telemetry on the same private origin as UI and camera.
             # Reject browser connections initiated from other websites.

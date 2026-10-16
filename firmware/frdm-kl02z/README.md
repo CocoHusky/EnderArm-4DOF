@@ -43,6 +43,21 @@ of initialized data, and 1,752 bytes of BSS.
 
 ## Serial protocol
 
+Version 0.4.0 uses a 10 ms acquisition target at the same 115200 baud. Full
+status frames are sent every 100 ms; intervening acceleration packets are:
+
+```json
+{"a":[12,-8,1004],"s":43,"t":12355,"h":1}
+```
+
+`a` is acceleration in milli-g, `s` is the shared sequence counter, `t` is
+device uptime in milliseconds, and `h` is accelerometer health (0 or 1).
+The host requires a full frame first and retains its slider/LED metadata until
+the next full frame. Touch scanning and LED feedback keep their 50 ms period.
+Blocking UART transmission limits the delivered rate: about 79 samples/s was
+measured on the reference board after flashing 0.4.0. The live graph buffers
+all received samples, including those received between browser updates.
+
 Version 0.3.0 adds `slider.gesture` (`none`, `press_1`, `press_2`, `press_3`,
 `swipe_left`, `swipe_right`) and a persistent `slider.gesture_id` counter.
 One release emits either a press or swipe, never both. Presses must remain
@@ -67,7 +82,7 @@ Untouched electrode readings were approximately 194/174 instead of 2/2.
 Physical swipe response still needs hands-on verification; the increased raw
 range alone does not establish positional accuracy.
 
-One JSON object per line, nominally 20 Hz:
+Full frame format (0.3.0 sent these at 20 Hz):
 
 ```json
 {"v":1,"device":"FRDM-KL02Z","fw":"0.1.0","seq":42,"ms":12345,"accel_mg":[12,-8,1004],"slider":{"raw_left":4,"raw_right":5,"position":500,"active":false,"swipe":"none"},"led":"off","health":{"accel":true,"slider":true,"whoami":26}}

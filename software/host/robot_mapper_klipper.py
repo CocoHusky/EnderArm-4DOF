@@ -3379,18 +3379,22 @@ function renderSensor(sensor){
 
   const mon=sensor.monitor||{},tilt=fresh&&mon.tilt_deg!=null?Number(mon.tilt_deg):null;
   $('sensorTilt').textContent=tilt==null?'—':tilt.toFixed(2)+'°';
+  if(!$('sensorMonitorApply').dataset.dirty){
   if(document.activeElement!==$('sensorTiltLimit'))$('sensorTiltLimit').value=Number(mon.allowed_deg??15).toFixed(1);
   if(document.activeElement!==$('sensorPersistence'))$('sensorPersistence').value=Number(mon.persistence_s??.75).toFixed(2);
   if(document.activeElement!==$('sensorTiltFilter'))$('sensorTiltFilter').value=Number(mon.filter_s??.25).toFixed(2);
   $('sensorMonitorEnabled').checked=Boolean(mon.enabled);
   $('sensorKillEnabled').checked=Boolean(mon.kill_enabled);
   $('sensorCorrectEnabled').checked=Boolean(sensor.correct_enabled);
+  }
   const fault=$('sensorFaultBadge');
   if(mon.fault_latched){fault.textContent='FAULT LATCHED';fault.className='badge bad'}
   else if(!mon.calibrated){fault.textContent='NOT CALIBRATED';fault.className='badge'}
   else if(mon.enabled){fault.textContent='MONITORING';fault.className='badge good'}
-  else{fault.textContent='CALIBRATED';fault.className='badge good'}
-  $('sensorFaultReason').textContent=mon.fault_reason||'No sensor fault.';
+  else{fault.textContent='MONITORING OFF';fault.className='badge warn'}
+  $('sensorFaultReason').textContent=mon.fault_reason||(!mon.enabled
+    ?'Tilt monitoring is OFF. Enable Monitor tilt and save monitoring to detect faults.'
+    :(!mon.kill_enabled&&!sensor.correct_enabled?'Monitoring only. KILL and auto-correction are OFF.':'No sensor fault.'));
   const recoverySelect=$('sensorRecoveryProgram'), recoveryName=sensor.recovery_program||'';
   if(recoverySelect && document.activeElement!==recoverySelect){
     const saved=Array.isArray(S.program?.saved)?S.program.saved:[];
@@ -4258,6 +4262,10 @@ $('guardApply').addEventListener('click',async()=>{
 $('sensorCalibrate').addEventListener('click',async()=>{
   try{await sensorCommand('/sensor_calibrate',{})}catch(e){alert(e.message)}
 });
+for(const id of ['sensorTiltLimit','sensorPersistence','sensorTiltFilter','sensorMonitorEnabled','sensorKillEnabled','sensorCorrectEnabled'])$(id).addEventListener('input',()=>{
+  $('sensorMonitorApply').dataset.dirty='1';
+  $('sensorMonitorApply').textContent='Save monitoring *';
+});
 $('sensorMonitorApply').addEventListener('click',async()=>{
   try{
     if($('sensorCorrectEnabled').checked && $('sensorKillEnabled').checked){
@@ -4268,7 +4276,7 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
       ?('it will run the saved '+recovery+' Motor X/Y path while holding Motor Z and rail fixed')
       :('it will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height');
     if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red and '+recoveryPlan+'. Normal motion remains available only after every recovery stage completes; an interrupted or failed recovery requires Home. Keep the area clear; this is not a hardware safety interlock.'))return;
-    await sensorCommand('/sensor_monitor',{
+    const result=await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),
       filter_s:Number($('sensorTiltFilter').value),
@@ -4276,6 +4284,9 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
       kill_enabled:$('sensorKillEnabled').checked,
       correct_enabled:$('sensorCorrectEnabled').checked
     });
+    delete $('sensorMonitorApply').dataset.dirty;
+    $('sensorMonitorApply').textContent='Save monitoring';
+    renderSensor(result.sensor||result);
   }catch(e){alert(e.message)}
 });
 $('sensorRecoverySave').addEventListener('click',async()=>{

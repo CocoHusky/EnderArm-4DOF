@@ -61,10 +61,12 @@ That route is checked against Boundary ON and executed as separate arrival
 stages, while the live Motor Z and rail positions are held fixed; its saved
 Motor Z and rail values are intentionally ignored. This lets a route express
 an `out → in → up → out` linkage recovery without rotating the base. It
-refuses to run unless the robot is homed and idle. When it finishes, normal
-motion remains locked until the operator explicitly presses Home; automatic
-homing is not allowed to clear that recovery lock. This is a modeled recovery
-path, not a collision sensor or replacement for a hardware interlock.
+refuses to run unless the robot is homed and idle. A recovery that reaches every
+stage leaves the existing home reference valid and normal motion available. If
+it is stopped or errors after starting, the reference is treated as uncertain:
+normal motion is locked until the operator explicitly presses Home, and
+automatic homing cannot clear that lock. This is a modeled recovery path, not a
+collision sensor or replacement for a hardware interlock.
 
 ## Configuration and local state
 

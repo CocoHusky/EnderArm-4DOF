@@ -2019,6 +2019,7 @@ def _tilt_correction_worker(reason):
     saved_tune=None
     flash_stop=None
     flash_thread=None
+    recovery_started=False
     try:
         with lock:
             _sync_state_from_arm_robot()
@@ -2032,6 +2033,7 @@ def _tilt_correction_worker(reason):
                 raise RuntimeError("tilt correction is unavailable while KILL is enabled")
 
             state["busy"]=True
+            recovery_started=True
             state["message"]="Tilt correction starting — " + str(reason)
             flash_stop,flash_thread=_start_tilt_warning_flash()
             saved_tune=(state["arm_speed"],state["arm_accel"],state["arm_jerk"],
@@ -2042,8 +2044,8 @@ def _tilt_correction_worker(reason):
             saved_route=str(SENSOR.recovery_program or "").strip()
             if saved_route:
                 _queue_saved_linkage_recovery(saved_route)
-                state.update(homed=False,home_required=True)
-                state["message"]="Tilt correction complete — press Home before normal motion"
+                state.update(homed=True,home_required=False)
+                state["message"]="Tilt correction complete — normal motion available"
                 return
 
             initial=kinematic_state(state["x"],state["y"],state["z"])["tool"]
@@ -2068,13 +2070,21 @@ def _tilt_correction_worker(reason):
             seed={"a":state["x"],"b":state["y"],"c":state["z"],"d":state.get("linear_y",0.0)}
             raised=_find_high_recovery_plan(unit_x,unit_y,float(inboard["radius_mm"]),z+5.0,rail,seed)
             _queue_recovery_stage(raised,"raising to the highest modeled safe height")
-            state.update(homed=False,home_required=True)
-            state["message"]="Tilt correction complete — press Home before normal motion"
+            state.update(homed=True,home_required=False)
+            state["message"]="Tilt correction complete — normal motion available"
     except MotionCancelled:
-        state["message"]="Tilt correction stopped"
+        if recovery_started:
+            state.update(homed=False,home_required=True)
+            state["message"]="Tilt correction stopped before completion — press Home before normal motion"
+        else:
+            state["message"]="Tilt correction stopped"
         stop_event.clear()
     except Exception as exc:
-        state["message"]="Tilt correction not run: " + str(exc)
+        if recovery_started:
+            state.update(homed=False,home_required=True)
+            state["message"]="Tilt correction incomplete — press Home before normal motion: " + str(exc)
+        else:
+            state["message"]="Tilt correction not run: " + str(exc)
     finally:
         if flash_stop is not None:
             flash_stop.set()
@@ -3387,8 +3397,8 @@ function renderSensor(sensor){
     recoverySelect.innerHTML='<option value="">Use generic recovery</option>'+saved.map(name=>'<option value="'+name+'"'+(name===recoveryName?' selected':'')+'>'+name+'</option>').join('');
   }
   if($('sensorRecoveryStatus'))$('sensorRecoveryStatus').textContent=Boolean(sensor.correct_enabled)
-    ?(recoveryName?'Correction ON: '+recoveryName+' runs X/Y only at the current Motor Z and rail, then requires Home.'
-      :'Correction ON: confirmed tilt runs the generic Boundary ON recovery, flashes red, then requires Home.')
+    ?(recoveryName?'Correction ON: '+recoveryName+' runs X/Y only at the current Motor Z and rail. Home is required only if recovery does not finish.'
+      :'Correction ON: confirmed tilt runs the generic Boundary ON recovery and flashes red. Home is required only if recovery does not finish.')
     :(recoveryName?'Selected route: '+recoveryName+'. It will run only when correction is enabled and tilt is confirmed.'
       :'Tilt correction is OFF. A saved route selection does not move the arm.');
 
@@ -4257,7 +4267,7 @@ $('sensorMonitorApply').addEventListener('click',async()=>{
     const recoveryPlan=recovery
       ?('it will run the saved '+recovery+' Motor X/Y path while holding Motor Z and rail fixed')
       :('it will move 5 mm up, retract toward the base axis inside Boundary ON, then raise to the highest modeled safe height');
-    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red and '+recoveryPlan+'. It stops afterward and requires you to press Home before normal motion. Keep the area clear; this is not a hardware safety interlock.'))return;
+    if($('sensorCorrectEnabled').checked && !confirm('Enable automatic tilt correction? After a sustained tilt fault, the arm flashes red and '+recoveryPlan+'. Normal motion remains available only after every recovery stage completes; an interrupted or failed recovery requires Home. Keep the area clear; this is not a hardware safety interlock.'))return;
     await sensorCommand('/sensor_monitor',{
       allowed_deg:Number($('sensorTiltLimit').value),
       persistence_s:Number($('sensorPersistence').value),

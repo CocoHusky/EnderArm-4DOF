@@ -4391,18 +4391,37 @@ function drawSensorStream(){
   ctx.clearRect(0,0,w,h);
   const colors=['#68baff','#73dda6','#f1bd68'];
   const last=sensorGraphSamples.at(-1);
+  const left=62,right=w-18,top=30,bottom=h-30;
   ctx.font='12px system-ui';
-  for(let i=0;i<3;i++){ctx.fillStyle=colors[i];ctx.fillText(['X','Y','Z'][i],14+i*32,18)}
+  for(let i=0;i<3;i++){ctx.fillStyle=colors[i];ctx.fillText(['X','Y','Z'][i],left+i*32,18)}
+  const peak=Math.max(1.2,...sensorGraphSamples.flatMap(s=>s.accel_g.map(Math.abs)));
+  const rough=peak/3,power=10**Math.floor(Math.log10(rough));
+  const step=[1,2,5,10].find(n=>n*power>=rough)*power;
+  const range=Math.ceil(peak/step)*step;
+  const y=v=>top+(bottom-top)*(1-v/range)/2;
+  ctx.lineWidth=1;
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let n=-Math.round(range/step);n<=Math.round(range/step);n++){
+    const v=n*step,py=y(v);
+    ctx.strokeStyle=n===0?'#657586':'#293542';
+    ctx.beginPath();ctx.moveTo(left,py);ctx.lineTo(right,py);ctx.stroke();
+    ctx.fillStyle='#b8c5d1';ctx.fillText(v.toFixed(step<1?1:0)+' g',left-8,py);
+  }
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  for(let seconds=10;seconds>=0;seconds--){
+    const x=left+(right-left)*(1-seconds/10);
+    ctx.strokeStyle='#293542';ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bottom);ctx.stroke();
+    ctx.fillStyle='#b8c5d1';ctx.fillText(seconds===0?'now':'−'+seconds+' s',x,h-10);
+  }
+  ctx.textAlign='left';
   if(!last)return;
-  const range=Math.max(1.2,...sensorGraphSamples.flatMap(s=>s.accel_g.map(Math.abs)));
-  const y=v=>30+(h-50)*(1-v/range)/2;
-  ctx.strokeStyle='#293542';ctx.beginPath();ctx.moveTo(0,y(0));ctx.lineTo(w,y(0));ctx.stroke();
-  ctx.fillStyle='#8d98a4';ctx.fillText(range.toFixed(1)+' g',w-55,18);ctx.fillText('10 s',8,h-6);ctx.fillText('now',w-35,h-6);
+  ctx.save();ctx.beginPath();ctx.rect(left,top,right-left,bottom-top);ctx.clip();
   for(let axis=0;axis<3;axis++){
     ctx.strokeStyle=colors[axis];ctx.lineWidth=1.5;ctx.beginPath();
-    sensorGraphSamples.forEach((s,i)=>{const x=w*(1-(last.t-s.t)/10),py=y(s.accel_g[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
+    sensorGraphSamples.forEach((s,i)=>{const x=left+(right-left)*(1-(last.t-s.t)/10),py=y(s.accel_g[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
     ctx.stroke();
   }
+  ctx.restore();
 }
 function startSensorStream(){
   if(sensorStream)return;

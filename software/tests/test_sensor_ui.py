@@ -7,6 +7,34 @@ import unittest
 
 class SensorUiTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('node'), 'Node is required for UI checks')
+    def test_stream_grid_labels_and_scaled_traces(self):
+        path = Path(__file__).resolve().parents[1] / 'host/robot_mapper_klipper.py'
+        subprocess.run(['node', '-e', r'''
+const fs=require('fs'),assert=require('assert');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const start=source.indexOf('function drawSensorStream(){');
+const end=source.indexOf('function startSensorStream()',start);
+let labels=[],points=[],clips=0;
+const ctx={clearRect(){},fillText(text,x,y){labels.push([text,x,y])},
+  beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},
+  stroke(){},save(){},rect(){},clip(){clips++},restore(){}};
+const canvas={width:900,height:220,getContext(){return ctx}};
+const draw=new Function('$','sensorGraphSamples',
+  'let sensorGraphRaf=0;'+source.slice(start,end)+';drawSensorStream();');
+for(const samples of [[],[{t:10,accel_g:[0,1,0]}],
+    [{t:0,accel_g:[0,1,0]},{t:10,accel_g:[3.1,-2,0]}]]){
+  labels=[];points=[];draw(()=>canvas,samples);
+  const texts=labels.map(l=>l[0]);
+  assert(texts.includes('−10 s'));assert(texts.includes('−5 s'));assert(texts.includes('now'));
+  assert(texts.some(t=>/^0(?:\.0)? g$/.test(t)));
+  assert(texts.some(t=>t.startsWith('-')&&t.endsWith(' g')));
+  assert(points.every(p=>p.every(Number.isFinite)));
+  assert(labels.every(([,x,y])=>x>=0&&x<=900&&y>=0&&y<=220));
+}
+assert.equal(clips,2);
+''', str(path)], check=True)
+
+    @unittest.skipUnless(shutil.which('node'), 'Node is required for UI checks')
     def test_protection_action_and_autosave(self):
         path = Path(__file__).resolve().parents[1] / 'host/robot_mapper_klipper.py'
         subprocess.run(['node', '-e', r'''

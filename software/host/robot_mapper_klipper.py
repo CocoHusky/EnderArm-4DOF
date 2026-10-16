@@ -4420,6 +4420,7 @@ function drawSensorStream(){
   if(!last)return;
   ctx.save();ctx.beginPath();ctx.rect(left,top,right-left,bottom-top);ctx.clip();
   for(let axis=0;axis<4;axis++){
+    ctx.setLineDash(axis===3?[6,5]:[]);
     ctx.strokeStyle=colors[axis];ctx.lineWidth=1.5;ctx.beginPath();
     sensorGraphSamples.forEach((s,i)=>{const x=left+(right-left)*(1-(last.t-s.t)/10),py=y(values(s)[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
     ctx.stroke();

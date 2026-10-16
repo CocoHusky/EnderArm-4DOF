@@ -14,10 +14,10 @@ const fs=require('fs'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
 const start=source.indexOf('function drawSensorStream(){');
 const end=source.indexOf('function startSensorStream()',start);
-let labels=[],points=[],clips=0;
+let labels=[],points=[],clips=0,dashes=[];
 const ctx={clearRect(){},fillText(text,x,y){labels.push([text,x,y])},
   beginPath(){},moveTo(x,y){points.push([x,y])},lineTo(x,y){points.push([x,y])},
-  stroke(){},save(){},rect(){},clip(){clips++},restore(){}};
+  stroke(){},save(){},rect(){},clip(){clips++},restore(){},setLineDash(v){dashes.push(v)}};
 const canvas={width:900,height:220,getContext(){return ctx}};
 const draw=new Function('$','sensorGraphSamples',
   'let sensorGraphRaf=0;'+source.slice(start,end)+';drawSensorStream();');
@@ -33,6 +33,7 @@ for(const samples of [[],[{t:10,accel_g:[0,1,0]}],
   assert(labels.every(([,x,y])=>x>=0&&x<=900&&y>=0&&y<=220));
 }
 assert.equal(clips,2);
+assert.deepEqual(dashes.slice(-4),[[],[],[],[6,5]]);
 // Magnitude, not the largest individual component, must drive autoscaling.
 labels=[];points=[];draw(()=>canvas,[{t:10,accel_g:[3,4,0]}]);
 assert(labels.some(([text])=>text==='6 g'));

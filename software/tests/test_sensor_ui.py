@@ -26,12 +26,17 @@ for(const samples of [[],[{t:10,accel_g:[0,1,0]}],
   labels=[];points=[];draw(()=>canvas,samples);
   const texts=labels.map(l=>l[0]);
   assert(texts.includes('−10 s'));assert(texts.includes('−5 s'));assert(texts.includes('now'));
+  assert(texts.includes('Mag'));
   assert(texts.some(t=>/^0(?:\.0)? g$/.test(t)));
   assert(texts.some(t=>t.startsWith('-')&&t.endsWith(' g')));
   assert(points.every(p=>p.every(Number.isFinite)));
   assert(labels.every(([,x,y])=>x>=0&&x<=900&&y>=0&&y<=220));
 }
 assert.equal(clips,2);
+// Magnitude, not the largest individual component, must drive autoscaling.
+labels=[];points=[];draw(()=>canvas,[{t:10,accel_g:[3,4,0]}]);
+assert(labels.some(([text])=>text==='6 g'));
+assert(points.some(([x,y])=>x===882&&Math.abs(y-(30+160*(1-5/6)/2))<1e-6));
 ''', str(path)], check=True)
 
     @unittest.skipUnless(shutil.which('node'), 'Node is required for UI checks')

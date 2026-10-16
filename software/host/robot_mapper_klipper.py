@@ -2592,7 +2592,7 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
     <section class="card debugCard">
       <div class="cardTitle"><div><h2>Live accelerometer</h2><div class="muted">FRDM-KL02Z · 3 axes · 1 g ≈ gravity at rest</div></div><span id="sensorLinkBadge" class="badge bad">DISCONNECTED</span></div>
       <div id="sensorStreamRate" class="muted">Connecting stream…</div>
-      <canvas id="sensorAccelGraph" width="900" height="220" aria-label="Live accelerometer X, Y and Z in g over the last ten seconds"></canvas>
+      <canvas id="sensorAccelGraph" width="900" height="220" aria-label="Live accelerometer X, Y, Z and magnitude in g over the last ten seconds"></canvas>
       <table class="metricTable"><tbody>
         <tr><td>Device</td><td id="sensorDevice">—</td></tr>
         <tr><td>Firmware</td><td id="sensorFw">—</td></tr>
@@ -4391,12 +4391,13 @@ function drawSensorStream(){
   sensorGraphRaf=0;
   const canvas=$('sensorAccelGraph'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
   ctx.clearRect(0,0,w,h);
-  const colors=['#68baff','#73dda6','#f1bd68'];
+  const colors=['#68baff','#73dda6','#f1bd68','#e1a5ff'];
+  const values=s=>[...s.accel_g,Math.hypot(...s.accel_g)];
   const last=sensorGraphSamples.at(-1);
   const left=62,right=w-18,top=30,bottom=h-30;
   ctx.font='12px system-ui';
-  for(let i=0;i<3;i++){ctx.fillStyle=colors[i];ctx.fillText(['X','Y','Z'][i],left+i*32,18)}
-  const peak=Math.max(1.2,...sensorGraphSamples.flatMap(s=>s.accel_g.map(Math.abs)));
+  for(let i=0;i<4;i++){ctx.fillStyle=colors[i];ctx.fillText(['X','Y','Z','Mag'][i],left+i*32,18)}
+  const peak=Math.max(1.2,...sensorGraphSamples.flatMap(s=>values(s).map(Math.abs)));
   const rough=peak/3,power=10**Math.floor(Math.log10(rough));
   const step=[1,2,5,10].find(n=>n*power>=rough)*power;
   const range=Math.ceil(peak/step)*step;
@@ -4418,9 +4419,9 @@ function drawSensorStream(){
   ctx.textAlign='left';
   if(!last)return;
   ctx.save();ctx.beginPath();ctx.rect(left,top,right-left,bottom-top);ctx.clip();
-  for(let axis=0;axis<3;axis++){
+  for(let axis=0;axis<4;axis++){
     ctx.strokeStyle=colors[axis];ctx.lineWidth=1.5;ctx.beginPath();
-    sensorGraphSamples.forEach((s,i)=>{const x=left+(right-left)*(1-(last.t-s.t)/10),py=y(s.accel_g[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
+    sensorGraphSamples.forEach((s,i)=>{const x=left+(right-left)*(1-(last.t-s.t)/10),py=y(values(s)[axis]);if(i===0)ctx.moveTo(x,py);else ctx.lineTo(x,py)});
     ctx.stroke();
   }
   ctx.restore();
@@ -4438,7 +4439,7 @@ function startSensorStream(){
     sensorGraphSamples.push(...packet.samples.filter(s=>s.id>previous));
     const last=sensorGraphSamples.at(-1);
     if(last)sensorGraphSamples=sensorGraphSamples.filter(s=>s.t>=last.t-10).slice(-10000);
-    $('sensorStreamRate').textContent=(packet.sensor.fresh?packet.source_hz:0)+' samples/s · '+sensorGraphSamples.length+' points · X / Y / Z'+(sensorStreamDropped?' · '+sensorStreamDropped+' missed':'');
+    $('sensorStreamRate').textContent=(packet.sensor.fresh?packet.source_hz:0)+' samples/s · '+sensorGraphSamples.length+' points · X / Y / Z / Mag'+(sensorStreamDropped?' · '+sensorStreamDropped+' missed':'');
     if(!sensorGraphRaf)sensorGraphRaf=requestAnimationFrame(drawSensorStream);
   };
   sensorStream.onerror=()=>{sensorStreamLive=false;$('sensorStreamRate').textContent='Stream reconnecting…'};

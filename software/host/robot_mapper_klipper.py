@@ -2360,7 +2360,7 @@ input{width:72px;padding:6px 7px;border:1px solid #34404b;border-radius:7px;back
         <canvas id="wsYZCanvas" width="720" height="430"></canvas>
       </section>
       <section class="card sliceCard">
-        <div class="sliceHead"><b>3D overview</b><span class="workspaceHint">drag rotate · wheel zoom</span><button id="wsFocusView">Focus move</button><button id="wsResetView">Full workspace</button></div>
+        <div class="sliceHead"><b>3D workspace</b><span class="workspaceHint">drag rotate · wheel zoom</span><button id="wsFocusView">Focus current + target</button><button id="wsResetView">Full workspace</button></div>
         <canvas id="workspaceCanvas" width="720" height="430"></canvas>
       </section>
     </section>
@@ -4584,15 +4584,34 @@ function draw3D(){
   const c=$('workspaceCanvas'),ctx=clearC(c),b=wb(),focus=workspaceCam.focus,
     cx=focus?focus.x:(b.x0+b.x1)/2,cy=focus?focus.y:(b.y0+b.y1)/2,cz=focus?focus.z:(b.z0+b.z1)/2,
     span=workspaceCam.span||Math.max(b.x1-b.x0,b.y1-b.y0,b.z1-b.z0,1);
-  const sc=Math.min(c.width,c.height)*.75/span*workspaceCam.zoom,ca=Math.cos(workspaceCam.yaw),sa=Math.sin(workspaceCam.yaw),cp=Math.cos(workspaceCam.pitch),sp=Math.sin(workspaceCam.pitch);
-  const P=(x,y,z)=>{const dx=-(x-cx),dy=y-cy,dz=z-cz,xr=dx*ca-dy*sa,yr=dx*sa+dy*ca;return[c.width/2+xr*sc,c.height/2-(dz*cp-yr*sp)*sc]};
-  ctx.fillStyle=focus?'rgba(55,155,215,.12)':'rgba(55,155,215,.20)';const pts=workspaceData.points||[];for(let i=0;i<pts.length;i+=2){const q=P(+pts[i][0],+pts[i][1],+pts[i][2]);if(q[0]>=-2&&q[0]<=c.width+2&&q[1]>=-2&&q[1]<=c.height+2)ctx.fillRect(q[0],q[1],1.5,1.5)}
+  const sc=Math.min(c.width,c.height)*.90/span*workspaceCam.zoom,ca=Math.cos(workspaceCam.yaw),sa=Math.sin(workspaceCam.yaw),cp=Math.cos(workspaceCam.pitch),sp=Math.sin(workspaceCam.pitch);
+  const P=(x,y,z)=>{const dx=-(x-cx),dy=y-cy,dz=z-cz,xr=dx*ca-dy*sa,yr=dx*sa+dy*ca,depth=dz*sp+yr*cp;return[c.width/2+xr*sc,c.height/2-(dz*cp-yr*sp)*sc,depth]};
+
+  // The workspace data is a point cloud, but drawing its individual samples
+  // made the actual volume nearly invisible.  Merge nearby screen samples
+  // into soft, depth-shaded cells so the reachable shape reads as a volume.
+  const cell=3,bins=new Map(),pts=workspaceData.points||[];
+  for(const point of pts){
+    const q=P(+point[0],+point[1],+point[2]);
+    if(q[0]<-2||q[0]>c.width+2||q[1]<-2||q[1]>c.height+2)continue;
+    const ix=Math.floor(q[0]/cell),iy=Math.floor(q[1]/cell),key=ix+','+iy;
+    const bin=bins.get(key)||{ix,iy,count:0,depth:0};
+    bin.count++;bin.depth+=q[2];bins.set(key,bin);
+  }
+  for(const bin of bins.values()){
+    const density=Math.min(1,Math.log2(bin.count+1)/2.5);
+    const near=Math.max(0,Math.min(1,.5+(bin.depth/bin.count)/(span*.75)));
+    const alpha=.20+.66*density;
+    const blue=Math.round(178+42*near),green=Math.round(120+54*near);
+    ctx.fillStyle=`rgba(37,${green},${blue},${alpha.toFixed(3)})`;
+    ctx.fillRect(bin.ix*cell,bin.iy*cell,cell+0.6,cell+0.6);
+  }
   if(workspaceData.meta&&workspaceData.meta.linear_enabled){const a=P(0,0,0),b1=P(0,235,0);line2(ctx,a[0],a[1],b1[0],b1[1],'#e8bc59',2)}
   const cur=currentWorldTool();if(cur){const q=P(cur.x,cur.y,cur.z);marker(ctx,q[0],q[1],'current','#eef2f5')}
   const q=P(+$('worldX').value,+$('worldY').value,+$('worldZ').value);marker(ctx,q[0],q[1],'target',worldPlan?'#6fd49b':'#e8bc59');
-  ctx.fillStyle='rgba(9,12,16,.86)';ctx.fillRect(9,9,focus?178:158,36);
-  ctx.fillStyle='#eef2f5';ctx.font='600 11px system-ui';ctx.fillText(focus?'FOCUSED MOVE VIEW':'FULL WORKSPACE',16,24);
-  ctx.fillStyle='#8d98a4';ctx.font='10px system-ui';ctx.fillText('white = current · gold/green = target',16,38);
+  ctx.fillStyle='rgba(9,12,16,.90)';ctx.fillRect(9,9,focus?238:208,36);
+  ctx.fillStyle='#eef2f5';ctx.font='600 11px system-ui';ctx.fillText(focus?'FOCUSED MOVE VOLUME':'FULL REACHABLE VOLUME',16,24);
+  ctx.fillStyle='#aeb9c4';ctx.font='10px system-ui';ctx.fillText('bright blue = denser reachable space',16,38);
 }
 function drawWorkspace(){drawSlice('xy');drawSlice('xz');drawSlice('yz');draw3D()}
 

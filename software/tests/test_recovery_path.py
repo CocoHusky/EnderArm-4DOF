@@ -10,7 +10,7 @@ from sensor_service import SensorService
 
 
 class RecoveryPathTests(unittest.TestCase):
-    def test_feedback_stops_after_first_fixed_axis_step(self):
+    def test_full_scoop_continues_below_trigger_with_fixed_axes(self):
         path = Path(__file__).resolve().parents[1] / 'host/robot_mapper_klipper.py'
         source = ast.parse(path.read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)
@@ -23,7 +23,10 @@ class RecoveryPathTests(unittest.TestCase):
                     yield point
         ns = {
             'math': math, 'time': SimpleNamespace(monotonic=lambda: 0),
-            'SENSOR': SimpleNamespace(monitor=SimpleNamespace(allowed_deg=20)),
+            'SENSOR': SimpleNamespace(monitor=SimpleNamespace(allowed_deg=20),
+                hard_kill_deg=50, snapshot=lambda: {'fresh': True,
+                    'monitor': {'tilt_deg': 10, 'sample_rejected': False}}),
+            '_PlannerPacer': lambda **_kwargs: SimpleNamespace(wait=lambda: None, add=lambda _duration: None),
             '_settled_recovery_tilt': lambda: next(readings),
             'state': {'x': 10, 'y': 20, 'z': 77, 'linear_y': 4},
             'kinematic_state': lambda *_args: {'tool': {'x': 0, 'y': -235.9, 'z': -41.2}},
@@ -49,9 +52,22 @@ class RecoveryPathTests(unittest.TestCase):
                 ns['kinematic_state'] = lambda *_args: {'tool': tool}
                 ns['state']['z'] = 2.5+yaw
                 ns['_queue_incremental_recovery']()
-                self.assertEqual(commands, [f'ARM_MOVE_JOINT A=11.00000 B=21.00000 C={2.5+yaw:.5f} D=4.00000', 'M400'])
+                moves = [c for c in commands if c.startswith('ARM_MOVE_JOINT')]
+                self.assertEqual(len(moves), 2)
+                self.assertEqual(commands[-1], 'M400')
+                self.assertEqual(commands.count('M400'), 1)
+                self.assertTrue(all(f'C={2.5+yaw:.5f} D=4.00000 TIME=' in c for c in moves))
+                self.assertTrue(all(float(c.split('TIME=')[1]) >= .5 for c in moves))
                 self.assertAlmostEqual(targets[0][0], 234*math.sin(angle))
                 self.assertAlmostEqual(targets[0][1], 4+234*math.cos(angle))
+        for sample in ({'fresh': False}, {'fresh': True, 'monitor': {'tilt_deg': 50}}):
+            with self.subTest(sample=sample):
+                readings = iter([40.0])
+                commands.clear()
+                ns['SENSOR'].snapshot = lambda: sample
+                with self.assertRaises(RuntimeError):
+                    ns['_queue_incremental_recovery']()
+                self.assertFalse(commands)
 
     @staticmethod
     def envelope(z):

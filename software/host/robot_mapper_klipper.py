@@ -1957,7 +1957,7 @@ def _settled_recovery_tilt():
     raise RuntimeError("No settled accelerometer reading after correction step")
 
 def _queue_incremental_recovery():
-    """Follow the taught green arc in small steps; never rotate the base."""
+    """Swoop relative to the current reach; never rotate the base."""
     tilt=_settled_recovery_tilt()
     if tilt<=SENSOR.monitor.allowed_deg:
         return
@@ -1968,24 +1968,40 @@ def _queue_incremental_recovery():
     if radius<1:
         raise RuntimeError("Recovery heading is undefined near the base axis")
     ux,uy=tool["x"]/radius,tool["y"]/radius
+    candidate_plan={}
+
+    def feasible(r,z):
+        check_stop()
+        seed={"a":state["x"],"b":state["y"],"c":fixed_c,"d":rail}
+        try:
+            plan=plan_world_target(ux*r,rail+uy*r,z,rail,seed=seed)
+            a0,b0=float(state["x"]),float(state["y"])
+            a1,b1=float(plan["A"]),float(plan["B"])
+            if abs(float(plan.get("C",fixed_c))-fixed_c)>.05:
+                return False
+            if clip_xy_path(a0,b0,a1,b1)[2] or max(abs(a1-a0),abs(b1-b0))>2:
+                return False
+            for n in range(21):
+                q=n/20
+                p=kinematic_state(a0+(a1-a0)*q,b0+(b1-b0)*q,fixed_c)["tool"]
+                if p["z"]<TABLE_Z_MIN-1e-4:
+                    return False
+            candidate_plan['value']=plan
+            return True
+        except MotionCancelled:
+            raise
+        except (ValueError,RuntimeError):
+            return False
+
     deadline=time.monotonic()+180
-    for index,(radius,z) in enumerate(recovery_steps(radius,float(tool["z"])),1):
+    samples=workspace_payload().get("side_samples",[])
+    steps=recovery_steps(radius,float(tool["z"]),samples,feasible)
+    for index,(radius,z) in enumerate(steps,1):
         check_stop()
         if index>200 or time.monotonic()>deadline:
             raise RuntimeError("Incremental correction exceeded its travel/time limit")
-        seed={"a":state["x"],"b":state["y"],"c":fixed_c,"d":rail}
-        plan=plan_world_target(ux*radius,rail+uy*radius,z,rail,seed=seed)
-        a0,b0=float(state["x"]),float(state["y"])
+        plan=candidate_plan['value']
         a1,b1=float(plan["A"]),float(plan["B"])
-        # Do not let the corridor planner substitute a different rotation.
-        _a,_b,clipped=clip_xy_path(a0,b0,a1,b1)
-        if clipped or max(abs(a1-a0),abs(b1-b0))>2:
-            raise RuntimeError("Recovery step cannot follow the taught arc inside the boundary")
-        for n in range(21):
-            q=n/20
-            p=kinematic_state(a0+(a1-a0)*q,b0+(b1-b0)*q,fixed_c)["tool"]
-            if p["z"]<TABLE_Z_MIN-1e-4:
-                raise RuntimeError("Recovery step would cross the table Z limit")
         state["message"]=f"X/Y correction · step {index} · tilt {tilt:.1f}°"
         _gcode(f"ARM_MOVE_JOINT A={a1:.5f} B={b1:.5f} C={fixed_c:.5f} D={rail:.5f}",timeout=8)
         _gcode("M400",timeout=15)
@@ -1997,7 +2013,7 @@ def _queue_incremental_recovery():
         if measured>tilt+5:
             raise RuntimeError("Tilt worsened during incremental correction")
         tilt=measured
-    raise RuntimeError("Recorded recovery arc ended before tilt was corrected")
+    raise RuntimeError("Inner recovery height reached before tilt was corrected")
 
 def _queue_recovery_stage(plan, label):
     """Recover with Motor X/Y only, preserving the live base and rail."""
@@ -2572,7 +2588,7 @@ main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
       <div id="sensorFaultReason" class="workspaceResult">No sensor fault.</div>
       <button id="sensorAck" hidden>Clear fault</button>
       <details><summary>Calibration & filter</summary><p class="muted">Keep the plate still in its normal position.</p><div class="fieldrow"><button id="sensorCalibrate">Calibrate</button><label>Filter s <input id="sensorTiltFilter" type="number" min="0.02" max="2" step="0.01" value="0.25"></label></div></details>
-      <details><summary>Correction path</summary><div class="muted">Green arc · 2 mm steps · Z stays above −135.6 mm.</div></details>
+      <details><summary>Correction path</summary><div class="muted">Relative swoop · 2 mm steps · Z stays above −135.6 mm.</div></details>
       <details><summary>Impact & Z protection · optional</summary>
         <div class="muted">Sampled software guard, not a safety interlock. KILL requires controller recovery and rehoming. Z uses absolute acceleration in g, not degrees.</div>
         <div class="fieldrow"><label><input id="guardImpactStop" type="checkbox"> Impact → KILL</label><label><input id="guardImpactFlash" type="checkbox"> Impact → flash red (5 Hz)</label><label>Impact Δg <input id="guardImpactG" type="number" min="0.1" max="8" step="0.1" value="1.1"></label></div>

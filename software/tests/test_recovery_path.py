@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 
-from recovery_path import RECOVERY_ARC, TABLE_Z_MIN, recovery_steps
+from recovery_path import RECOVERY_TOP_Z, TABLE_Z_MIN, recovery_steps
 from sensor_service import SensorService
 
 
@@ -17,13 +17,19 @@ class RecoveryPathTests(unittest.TestCase):
                         and n.name == '_queue_incremental_recovery')
         readings = iter([40.0, 10.0])
         commands = []
+        def steps(_r, _z, _samples, feasible):
+            for point in [(234, -42), (233, -43)]:
+                if feasible(*point):
+                    yield point
         ns = {
             'math': math, 'time': SimpleNamespace(monotonic=lambda: 0),
             'SENSOR': SimpleNamespace(monitor=SimpleNamespace(allowed_deg=20)),
             '_settled_recovery_tilt': lambda: next(readings),
             'state': {'x': 10, 'y': 20, 'z': 77, 'linear_y': 4},
             'kinematic_state': lambda *_args: {'tool': {'x': 0, 'y': -235.9, 'z': -41.2}},
-            'recovery_steps': lambda *_args: iter([(234, -42), (233, -43)]),
+            'recovery_steps': steps,
+            'workspace_payload': lambda: {'side_samples': [(130, -41), (240, -41)]},
+            'MotionCancelled': type('Cancelled', (Exception,), {}),
             'plan_world_target': lambda *_args, **_kwargs: {'A': 11, 'B': 21},
             'clip_xy_path': lambda *_args: (11, 21, False),
             'TABLE_Z_MIN': TABLE_Z_MIN, 'check_stop': lambda: None,
@@ -31,26 +37,60 @@ class RecoveryPathTests(unittest.TestCase):
             '_sync_state_from_arm_robot': lambda: None,
         }
         exec(compile(ast.Module(body=[function], type_ignores=[]), '<incremental>', 'exec'), ns)
-        ns['_queue_incremental_recovery']()
-        self.assertEqual(commands, ['ARM_MOVE_JOINT A=11.00000 B=21.00000 C=77.00000 D=4.00000', 'M400'])
+        targets = []
+        ns['plan_world_target'] = lambda *args, **_kwargs: (targets.append(args) or {'A': 11, 'B': 21})
+        for yaw in (0, 90, 180, 270):
+            with self.subTest(yaw=yaw):
+                commands.clear()
+                targets.clear()
+                readings = iter([40.0, 10.0])
+                angle = math.radians(yaw)
+                tool = {'x': 235.9*math.sin(angle), 'y': 235.9*math.cos(angle), 'z': -41.2}
+                ns['kinematic_state'] = lambda *_args: {'tool': tool}
+                ns['state']['z'] = 2.5+yaw
+                ns['_queue_incremental_recovery']()
+                self.assertEqual(commands, [f'ARM_MOVE_JOINT A=11.00000 B=21.00000 C={2.5+yaw:.5f} D=4.00000', 'M400'])
+                self.assertAlmostEqual(targets[0][0], 234*math.sin(angle))
+                self.assertAlmostEqual(targets[0][1], 4+234*math.cos(angle))
 
-    def test_green_direction_small_steps_and_table_floor(self):
-        points = [RECOVERY_ARC[0], *recovery_steps(*RECOVERY_ARC[0])]
-        self.assertEqual(points[-1], RECOVERY_ARC[-1])
+    @staticmethod
+    def envelope(z):
+        return 130+.002*(z+60)**2, 240-.004*(z+40)**2
+
+    def samples(self):
+        return [(r, z) for z in range(-135, 41, 5) for r in self.envelope(z)]
+
+    def feasible(self, r, z):
+        inner, outer = self.envelope(z)
+        return TABLE_Z_MIN <= z <= 40 and inner <= r <= outer
+
+    def test_relative_direction_small_steps_and_table_floor(self):
+        start = (235, -41)
+        points = [start, *recovery_steps(*start, self.samples(), self.feasible)]
+        self.assertAlmostEqual(points[-1][1], RECOVERY_TOP_Z, delta=.5)
         self.assertTrue(all(math.dist(a, b) <= 2.000001 for a, b in zip(points, points[1:])))
-        self.assertTrue(all(b[0] <= a[0] for a, b in zip(points, points[1:])))
         self.assertGreaterEqual(min(p[1] for p in points), TABLE_Z_MIN)
-        for point in RECOVERY_ARC:
-            self.assertTrue(any(math.dist(point, p) < 1e-6 for p in points))
+        bottom = min(range(len(points)), key=lambda i: points[i][1])
+        self.assertTrue(all(b[0] <= a[0] for a, b in zip(points[:bottom], points[1:bottom+1])))
+        self.assertLess(min(p[0] for p in points), start[0]-50)
+        self.assertTrue(all(self.feasible(*p) for p in points))
 
-    def test_middle_entry_does_not_return_to_outer_edge(self):
-        points = list(recovery_steps(*RECOVERY_ARC[4]))
-        self.assertTrue(all(p[0] <= RECOVERY_ARC[4][0] for p in points))
+    def test_inner_start_goes_up_without_an_outer_loop(self):
+        start = (136, -110)
+        points = [start, *recovery_steps(*start, self.samples(), self.feasible)]
+        self.assertTrue(all(b[1] >= a[1] for a, b in zip(points, points[1:])))
 
-    def test_unrecorded_entry_and_below_table_are_rejected(self):
-        for point in [(300, 100), (179, -136)]:
-            with self.assertRaises(ValueError):
-                list(recovery_steps(*point))
+    def test_different_current_poses_produce_different_paths(self):
+        first = list(recovery_steps(235, -41, self.samples(), self.feasible))
+        second = list(recovery_steps(220, -75, self.samples(), self.feasible))
+        self.assertNotEqual(first[0], second[0])
+        self.assertTrue(all(math.dist((220, -75), p) <= 2.00001 for p in second[:1]))
+
+    def test_below_table_and_missing_workspace_are_rejected(self):
+        with self.assertRaises(ValueError):
+            list(recovery_steps(179, -136, self.samples(), self.feasible))
+        with self.assertRaises(ValueError):
+            list(recovery_steps(179, -110, [], self.feasible))
 
     def test_hard_kill_overrides_latched_correction(self):
         with tempfile.TemporaryDirectory() as td:

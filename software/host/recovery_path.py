@@ -1,38 +1,58 @@
-"""Ordered arm-side recovery arc recorded by the operator, in millimetres."""
+"""Relative radial recovery within the current arm-side workspace."""
 import math
 
 TABLE_Z_MIN = -135.6
-RECOVERY_ARC = (
-    (235.9, -41.2), (230.2, -70.8), (217.0, -104.0),
-    (204.2, -130.0), (179.2, -135.6), (154.9, -129.1),
-    (131.9, -68.4),
-)
+RECOVERY_TOP_Z = TABLE_Z_MIN / 2.0
 
 
-def recovery_steps(radius, z, step_mm=2.0, entry_tolerance_mm=5.0):
-    """Join the nearest arc segment, then follow only its recorded direction."""
-    if not all(math.isfinite(v) for v in (radius, z, step_mm, entry_tolerance_mm)):
-        raise ValueError('Recovery coordinates must be finite')
-    if step_mm <= 0 or entry_tolerance_mm < 0:
-        raise ValueError('Recovery step and entry distance are invalid')
-    if z < TABLE_Z_MIN:
-        raise ValueError('Current pose is below the recovery table limit')
-    candidates = []
-    for i, (a, b) in enumerate(zip(RECOVERY_ARC, RECOVERY_ARC[1:])):
-        delta = (b[0]-a[0], b[1]-a[1])
-        t = max(0.0, min(1.0, ((radius-a[0])*delta[0]+(z-a[1])*delta[1]) /
-                            (delta[0]**2+delta[1]**2)))
-        point = (a[0]+t*delta[0], a[1]+t*delta[1])
-        candidates.append((math.dist((radius, z), point), i, point))
-    distance, index, entry = min(candidates)
-    if distance > entry_tolerance_mm:
-        raise ValueError('Current pose is not near the recorded recovery arc')
-    current = (radius, z)
-    for target in (entry, *RECOVERY_ARC[index+1:]):
-        count = max(1, math.ceil(math.dist(current, target)/step_mm))
-        start = current
-        for n in range(1, count+1):
-            point = tuple(a+(b-a)*n/count for a, b in zip(start, target))
-            if math.dist(current, point) > 1e-7:
-                yield point
-            current = point
+def recovery_steps(radius, z, side_samples, feasible, step_mm=2.0):
+    """Descend outside, turn inward, then ascend the connected inner edge.
+
+    Radius is reach from the base axis, independent of base rotation.
+    The caller approves every step against its live joint branch.
+    """
+    if not all(math.isfinite(v) for v in (radius, z, step_mm)) or step_mm <= 0:
+        raise ValueError('Recovery coordinates and step must be valid')
+    if radius <= 0 or z < TABLE_Z_MIN:
+        raise ValueError('Current pose is below the table limit or at the base axis')
+    samples = [(float(p[0]), float(p[1])) for p in side_samples
+               if len(p) >= 2 and p[0] > 0 and math.isfinite(p[0]) and math.isfinite(p[1])]
+    if not samples:
+        raise ValueError('No measured workspace is available for recovery')
+    nearest_z = min(abs(p[1]-z) for p in samples)
+    band = [r for r, height in samples if abs(height-z) <= nearest_z+6]
+    inner, outer = min(band), max(band)
+    # An inner-side start continues upward instead of descending the wrong edge.
+    phase = 'up' if radius <= (inner+outer)/2 else 'down'
+    floor = TABLE_Z_MIN + 0.5
+    for _ in range(600):
+        if phase == 'up' and z >= RECOVERY_TOP_Z-0.5:
+            return
+        if phase == 'in':
+            candidates = [(radius-step_mm, z)]
+        else:
+            angles = range(0, 76, 15) if phase == 'down' else range(15, 166, 15)
+            candidates = []
+            for degrees in angles:
+                t = math.radians(degrees)
+                if phase == 'down':
+                    dr, dz = -step_mm*math.sin(t), -step_mm*math.cos(t)
+                else:
+                    dr, dz = -step_mm*math.cos(t), step_mm*math.sin(t)
+                    if z+dz > RECOVERY_TOP_Z:
+                        scale = (RECOVERY_TOP_Z-z)/dz
+                        dr, dz = dr*scale, dz*scale
+                candidates.append((radius+dr, z+dz))
+        chosen = next(((r, h) for r, h in candidates
+                       if r > 1 and h >= floor and feasible(r, h)), None)
+        if chosen is None:
+            if phase == 'down':
+                phase = 'in'
+                continue
+            if phase == 'in':
+                phase = 'up'
+                continue
+            raise ValueError('No upward recovery step is safe at the inner boundary')
+        radius, z = chosen
+        yield chosen
+    raise ValueError('Relative recovery exceeded its step limit')

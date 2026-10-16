@@ -55,13 +55,17 @@ fixed throughout recovery. KILL shuts Klipper down and requires Home; it
 cannot be followed directly by motion. If stopping or correction fails,
 the controller is emergency-stopped and Home is required.
 
-Correction follows the operator-recorded green side-view arc in
-`software/host/recovery_path.py`, in that direction only, with no initial hop.
-Each tool step is at most 2 mm. The host waits for settled, fresh accelerometer
+Correction makes a relative radial swoop from the current pose at the current
+base rotation. It descends along the outer side of the connected workspace,
+turns inward above the table, then follows the inner edge up to roughly
+world Z −67.8 mm. An inner-side start goes up directly instead of looping down.
+It does not replay recorded coordinates or rotate Motor Z.
+Each proposed step is at most 2 mm and checked against the live linkage branch,
+measured joint boundary, and table floor (world Z −135.6 mm). The planner
+keeps 0.5 mm extra table clearance. The host waits for settled, fresh tilt
 readings after each step and stops as soon as tilt stays within the limit.
-The path stays inside the measured boundary and above world Z −135.6 mm.
-It refuses a starting position more than 5 mm from the recorded arc rather
-than inventing a joining movement. Motor Z and rail remain fixed.
+Motor Z and rail remain fixed. A blocked step is refused rather than replaced
+with a corridor on the opposite side of the workspace.
 
 The separate KILL angle defaults to 50°. While protection is On, a valid
 filtered reading at that limit emergency-stops even during correction or

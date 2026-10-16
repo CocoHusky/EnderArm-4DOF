@@ -1,4 +1,5 @@
 import fcntl
+import glob
 import hashlib
 import heapq
 import json
@@ -100,6 +101,10 @@ SENSOR_PORT = os.environ.get(
     "ENDERARM_SENSOR_PORT",
     "/dev/serial/by-id/FRDM-KL02Z",
 )
+if not os.environ.get("ENDERARM_SENSOR_PORT") and not os.path.exists(SENSOR_PORT):
+    sensor_ports = glob.glob("/dev/serial/by-id/*OpenSDA*")
+    if len(sensor_ports) == 1:
+        SENSOR_PORT = sensor_ports[0]
 SENSOR = None
 
 def _load_linear_mode():

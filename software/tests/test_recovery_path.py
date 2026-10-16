@@ -41,7 +41,8 @@ class RecoveryPathTests(unittest.TestCase):
         }
         exec(compile(ast.Module(body=[function], type_ignores=[]), '<incremental>', 'exec'), ns)
         targets = []
-        ns['plan_world_target'] = lambda *args, **_kwargs: (targets.append(args) or {'A': 11, 'B': 21})
+        ns['plan_world_target'] = lambda *args, **kwargs: (targets.append(args) or
+            {'A': kwargs['seed']['a']+1, 'B': kwargs['seed']['b']+1})
         for yaw in (0, 90, 180, 270):
             with self.subTest(yaw=yaw):
                 commands.clear()
@@ -57,7 +58,7 @@ class RecoveryPathTests(unittest.TestCase):
                 self.assertEqual(commands[-1], 'M400')
                 self.assertEqual(commands.count('M400'), 1)
                 self.assertTrue(all(f'C={2.5+yaw:.5f} D=4.00000 TIME=' in c for c in moves))
-                self.assertTrue(all(float(c.split('TIME=')[1]) >= .5 for c in moves))
+                self.assertTrue(all(abs(float(c.split('TIME=')[1])-math.sqrt(2)/10)<.00001 for c in moves))
                 self.assertAlmostEqual(targets[0][0], 234*math.sin(angle))
                 self.assertAlmostEqual(targets[0][1], 4+234*math.cos(angle))
         for sample in ({'fresh': False}, {'fresh': True, 'monitor': {'tilt_deg': 50}}):

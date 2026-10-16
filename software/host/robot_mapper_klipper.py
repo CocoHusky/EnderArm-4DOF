@@ -1963,8 +1963,11 @@ def _settled_recovery_tilt():
         time.sleep(.025)
     raise RuntimeError("No settled accelerometer reading after correction step")
 
-def _queue_incremental_recovery():
+def _queue_incremental_recovery(speed=None):
     """Swoop relative to the current reach; never rotate the base."""
+    # Snapshot the normal joint speed before recovery tuning/status updates.
+    speed=max(.25,min(55.0,float(speed if speed is not None else
+                               float(state.get("arm_speed",40.0))*.25)))
     tilt=_settled_recovery_tilt()
     fixed_c=float(state["z"])
     rail=float(state.get("linear_y",0.0))
@@ -2002,7 +2005,6 @@ def _queue_incremental_recovery():
     deadline=time.monotonic()+240
     samples=workspace_payload().get("side_samples",[])
     steps=recovery_steps(radius,float(tool["z"]),samples,feasible)
-    previous=(radius,float(tool["z"]))
     pacer=_PlannerPacer(max_ahead=.6)
     for index,(radius,z) in enumerate(steps,1):
         pacer.wait()
@@ -2020,12 +2022,11 @@ def _queue_incremental_recovery():
             raise RuntimeError("Tilt reached KILL limit during correction")
         # Slow continuous travel, rather than a fast jump followed by settling
         # at every waypoint. Keep lookahead short for cancellation and feedback.
-        duration=max(.05,math.dist(previous,(radius,z))/2.0)
+        duration=max(.05,math.hypot(a1-planned[0],b1-planned[1])/speed)
         state["message"]=f"X/Y correction · step {index} · tilt {tilt:.1f}°"
         _gcode(f"ARM_MOVE_JOINT A={a1:.5f} B={b1:.5f} C={fixed_c:.5f} D={rail:.5f} TIME={duration:.5f}",timeout=8)
         pacer.add(duration)
         planned[:]=[a1,b1]
-        previous=(radius,z)
     _gcode("M400",timeout=15)
     check_stop()
     _sync_state_from_arm_robot()
@@ -2164,10 +2165,11 @@ def _tilt_correction_worker(reason):
             flash_stop,flash_thread=_start_tilt_warning_flash()
             saved_tune=(state["arm_speed"],state["arm_accel"],state["arm_jerk"],
                         state["linear_speed"],state["linear_accel"],state["linear_jerk"])
-            _gcode("ARM_TUNE ARM_VELOCITY=20 ARM_ACCEL=80 ARM_CORNER=3 "
+            recovery_speed=max(.25,min(55.0,float(saved_tune[0])*.25))
+            _gcode(f"ARM_TUNE ARM_VELOCITY={recovery_speed:.4f} ARM_ACCEL=80 ARM_CORNER=3 "
                    "SLIDE_VELOCITY=15 SLIDE_ACCEL=60 SLIDE_CORNER=2", timeout=5)
 
-            _queue_incremental_recovery()
+            _queue_incremental_recovery(recovery_speed)
             check_stop()
             if not SENSOR.clear_recovered_tilt():
                 raise RuntimeError("Tilt did not remain normal after correction")

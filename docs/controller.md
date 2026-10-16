@@ -63,11 +63,13 @@ It does not replay recorded coordinates or rotate Motor Z.
 Each proposed step is at most 2 mm and checked against the live linkage branch,
 measured joint boundary, and table floor (world Z −135.6 mm). The planner
 keeps 0.5 mm extra table clearance. Short buffered segments travel continuously
-at a slow requested 2 mm/s instead of stopping to settle at every waypoint.
+at 25% of the normal arm joint speed instead of stopping to settle at every
+waypoint. Normal speed is captured when correction starts; acceleration and
+corner limits remain gentle. This replaces the testing-only 2 mm/s tool feed.
 Correction completes the full scoop even if tilt crosses below the trigger
 partway through. Fresh sensor feedback and the hard KILL limit remain required
 throughout; settled, normal tilt is verified at the endpoint before clearing
-the fault. Short lookahead limits queued travel to about 1.6 seconds.
+the fault. Short lookahead limits queued travel to 0.6 seconds plus one segment.
 Motor Z and rail remain fixed. A blocked step is refused rather than replaced
 with a corridor on the opposite side of the workspace.
 

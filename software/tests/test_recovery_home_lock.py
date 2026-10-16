@@ -54,7 +54,7 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
             recovery_program='Known recovery'),
         '_start_tilt_warning_flash': lambda: (None, None),
         '_queue_saved_linkage_recovery': queue_saved,
-        '_queue_incremental_recovery': lambda: queue_saved('Green arc'),
+        '_queue_incremental_recovery': lambda _speed: queue_saved('Green arc'),
         '_gcode': lambda command, **_kwargs: commands.append(command) if commands is not None else None,
         '_emergency_kill': lambda reason: state.update(homed=False, home_required=True, kill_reason=reason),
         'check_stop': lambda: None,
@@ -106,6 +106,7 @@ class RecoveryHomeLockTests(unittest.TestCase):
         worker('tilt during a program')
         self.assertEqual(commands[:2], ['ARM_DANCE_STOP', 'M400'])
         self.assertLess(commands.index('M400'), commands.index('RECOVER'))
+        self.assertTrue(any('ARM_VELOCITY=10.0000' in c for c in commands))
         self.assertFalse(state['correction_pending'])
 
     def test_recovery_lock_rejects_motion_without_automatic_home(self):

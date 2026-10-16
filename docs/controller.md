@@ -42,6 +42,12 @@ Physical base travel, disabled rail, numerical validity and linkage reachability
 still apply. A point failure must identify its waypoint; it must not silently
 run a prior edited value. Workspace caches describe modeled reach, not obstacles.
 
+With Boundary ON, every A/B segment is sampled against the measured envelope.
+If a resolved world target is safe but its direct joint segment crosses a concave
+part of that envelope, the host plans a short interior corridor and sends the
+resulting blended joint moves instead. Boundary OFF keeps its direct Cartesian
+behavior and does not use this corridor planner.
+
 ## Configuration and local state
 
 ### Confirmed Right Beer boundary calibration

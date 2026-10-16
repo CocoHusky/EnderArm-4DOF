@@ -1,5 +1,6 @@
 import fcntl
 import hashlib
+import heapq
 import json
 import math
 import os
@@ -583,9 +584,9 @@ def plan_world_target(tx,ty,tz,preferred_d=None, seed=None):
         if boundary_on:
             if margin < BOUNDARY_YIELD:
                 return None
-            nx,ny,clipped=clip_xy_path(cur_a,cur_b,a,b)
-            if clipped or abs(nx-a)>0.05 or abs(ny-b)>0.05:
-                return None
+            # The endpoint is safe.  A later joint-space corridor planner
+            # decides whether a direct segment is safe or needs to travel
+            # around a concave portion of the measured envelope.
         cost=(abs(d-cur_d)*0.55 + abs(c-cur_c)*0.12
               + math.hypot(a-cur_a,b-cur_b)*0.10)
         return {"reachable":True,"x":tx,"y":ty,"z":tz,
@@ -1292,6 +1293,147 @@ def clip_xy_path(x0,y0,x1,y1):
             return x0,y0,True
 
     return last[0],last[1],clipped
+
+def _joint_segment_is_safe(start, end):
+    """Return whether a complete A/B segment stays inside the active envelope."""
+    nx,ny,clipped=clip_xy_path(start[0],start[1],end[0],end[1])
+    return not clipped and abs(nx-end[0]) <= 0.05 and abs(ny-end[1]) <= 0.05
+
+def safe_joint_route(start, end, grid_step=2.0):
+    """Find a short, fully validated A/B route inside the measured envelope.
+
+    Cartesian targets are solved to joints first.  If the direct joint segment
+    crosses a concave part of the measured envelope, an A* search uses only
+    interior samples, then removes unnecessary corners.  The returned points
+    are all checked again by ``clip_xy_path`` before they are queued.
+    """
+    start=(float(start[0]),float(start[1]))
+    end=(float(end[0]),float(end[1]))
+    if _joint_segment_is_safe(start,end):
+        return [start,end]
+
+    step=max(0.5,float(grid_step))
+    amin=math.ceil(min(p[0] for p in BOUNDARY_POLY)/step)
+    amax=math.floor(max(p[0] for p in BOUNDARY_POLY)/step)
+    bmin=math.ceil(min(p[1] for p in BOUNDARY_POLY)/step)
+    bmax=math.floor(max(p[1] for p in BOUNDARY_POLY)/step)
+    nodes={}
+    for ai in range(amin,amax+1):
+        for bi in range(bmin,bmax+1):
+            point=(ai*step,bi*step)
+            if boundary_score(*point) >= BOUNDARY_YIELD:
+                nodes[(ai,bi)]=point
+    if not nodes:
+        raise RuntimeError("Measured boundary has no interior route samples")
+
+    start_id=(None,"start")
+    end_id=(None,"end")
+    positions={**nodes,start_id:start,end_id:end}
+
+    def visible_anchors(point):
+        ranked=sorted(nodes, key=lambda key: math.dist(point,nodes[key]))
+        anchors=[]
+        for key in ranked:
+            if _joint_segment_is_safe(point,nodes[key]):
+                anchors.append(key)
+                if len(anchors) == 12:
+                    break
+        return anchors
+
+    start_anchors=visible_anchors(start)
+    end_anchors=visible_anchors(end)
+    if not start_anchors or not end_anchors:
+        raise RuntimeError("No safe corridor connects the current pose to this target")
+
+    neighbor_offsets=((1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1))
+    def neighbors(key):
+        if key == start_id:
+            return start_anchors
+        if key == end_id:
+            return end_anchors
+        result=[]
+        if key in start_anchors:
+            result.append(start_id)
+        if key in end_anchors:
+            result.append(end_id)
+        for da,db in neighbor_offsets:
+            candidate=(key[0]+da,key[1]+db)
+            if candidate in nodes and _joint_segment_is_safe(positions[key],nodes[candidate]):
+                result.append(candidate)
+        return result
+
+    sequence=0
+    queue=[(math.dist(start,end),0.0,sequence,start_id)]
+    costs={start_id:0.0}
+    previous={}
+    while queue:
+        _,cost,_,key=heapq.heappop(queue)
+        if cost != costs.get(key):
+            continue
+        if key == end_id:
+            break
+        for candidate in neighbors(key):
+            next_cost=cost+math.dist(positions[key],positions[candidate])
+            if next_cost+1e-9 >= costs.get(candidate,float("inf")):
+                continue
+            costs[candidate]=next_cost
+            previous[candidate]=key
+            sequence+=1
+            heapq.heappush(
+                queue,
+                (next_cost+math.dist(positions[candidate],end),next_cost,sequence,candidate),
+            )
+    if end_id not in previous:
+        raise RuntimeError("No safe corridor connects the current pose to this target")
+
+    route=[]
+    key=end_id
+    while True:
+        route.append(positions[key])
+        if key == start_id:
+            break
+        key=previous[key]
+    route.reverse()
+
+    # Keep only corners that are actually needed.  This gives Klipper a
+    # small, smooth set of blended joint moves instead of a visible grid path.
+    smoothed=[route[0]]
+    cursor=0
+    while cursor < len(route)-1:
+        target=len(route)-1
+        while target > cursor+1 and not _joint_segment_is_safe(route[cursor],route[target]):
+            target-=1
+        smoothed.append(route[target])
+        cursor=target
+    return smoothed
+
+def queue_safe_world_route(plan):
+    """Queue a boundary-safe joint corridor for one resolved world target."""
+    start=(float(state["x"]),float(state["y"]))
+    end=(float(plan["A"]),float(plan["B"]))
+    route=safe_joint_route(start,end)
+    if len(route) == 2:
+        _gcode(
+            f"ARM_MOVE_JOINT A={plan['A']:.5f} B={plan['B']:.5f} "
+            f"C={plan['C']:.5f} D={plan['D']:.5f}",timeout=5)
+        return route
+
+    start_c=float(state["z"])
+    start_d=float(state.get("linear_y",0.0))
+    total=sum(math.dist(a,b) for a,b in zip(route,route[1:]))
+    travelled=0.0
+    commands=[]
+    for before,point in zip(route,route[1:]):
+        travelled+=math.dist(before,point)
+        ratio=travelled/total if total > 1e-9 else 1.0
+        c=start_c+(float(plan["C"])-start_c)*ratio
+        d=start_d+(float(plan["D"])-start_d)*ratio
+        commands.append(
+            f"ARM_MOVE_JOINT A={point[0]:.5f} B={point[1]:.5f} "
+            f"C={c:.5f} D={d:.5f}"
+        )
+    _gcode("\n".join(commands),timeout=8)
+    return route
 
 def smooth_dance_waypoints(home_z, cycles=10, arm_steps=1, base_steps=2):
     """Generate a looped dance with the same arm sweep at each base angle."""
@@ -4264,7 +4406,7 @@ async function previewWorld(){
     const railText=S.linear_hardware?('Rail '+fmt(worldPlan.D,1)+' mm'):'Rail disabled · 0 mm';
     $('worldPlanSummary').innerHTML=worldPlan.direct
       ?'<span class="good"><b>Boundary OFF — direct move</b></span><br>World X/Y/Z '+fmt(x,1)+', '+fmt(y,1)+', '+fmt(z,1)+' mm<br>'+railText+' · Klipper resolves the real arm geometry when you move.'
-      :'<span class="good"><b>Reachable</b></span><br>World X/Y/Z '+fmt(x,1)+', '+fmt(y,1)+', '+fmt(z,1)+' mm<br>'+railText+' · Motor Z θ '+fmt(worldPlan.C,1)+'°<br>Motor X/Y θ '+fmt(worldPlan.A,1)+'° / '+fmt(worldPlan.B,1)+'°';
+      :'<span class="good"><b>'+((worldPlan.route_points||2)>2?'Safe corridor ready':'Direct safe path')+'</b></span><br>World X/Y/Z '+fmt(x,1)+', '+fmt(y,1)+', '+fmt(z,1)+' mm<br>'+railText+' · Motor Z θ '+fmt(worldPlan.C,1)+'°<br>Motor X/Y θ '+fmt(worldPlan.A,1)+'° / '+fmt(worldPlan.B,1)+'°'+((worldPlan.route_points||2)>2?'<br>'+((worldPlan.route_points||2)-2)+' blended boundary corner'+((worldPlan.route_points||2)===3?'':'s'):'');
     $('worldMove').disabled=false;drawWorkspace();return worldPlan
   }catch(e){worldPlan=null;$('worldPlanSummary').innerHTML='<span class="bad"><b>Not reachable:</b> '+e.message+'</span>';drawWorkspace();return null}
 }
@@ -4457,6 +4599,12 @@ class Handler(BaseHTTPRequestHandler):
                           "y":float(body["y"]),"z":float(body["z"]),"D":d}
                 else:
                     plan=plan_world_target(body["x"],body["y"],body["z"],pref)
+                    route=safe_joint_route(
+                        (float(state["x"]),float(state["y"])),
+                        (float(plan["A"]),float(plan["B"])),
+                    )
+                    plan["route_points"]=len(route)
+                    plan["direct"]=len(route)==2
                 self.reply(plan)
             except Exception as e:
                 self.reply({"error":str(e)},400)
@@ -4867,19 +5015,28 @@ class Handler(BaseHTTPRequestHandler):
                     if state.get("boundary_enabled",True):
                         plan=plan_world_target(tx,ty,tz,requested_d)
                         d=float(plan["D"]) if rail_enabled else 0.0
+                        route=queue_safe_world_route(plan)
+                        route_note=(
+                            " · direct safe path" if len(route)==2 else
+                            f" · safe corridor via {len(route)-2} corner"
+                            f"{'s' if len(route) != 3 else ''}"
+                        )
                     else:
                         # Do not ask the Boundary ON workspace planner to
                         # approve a direct Cartesian move when protection is
                         # off.  Klipper receives the requested pose directly.
                         d=(float(state.get("linear_y",0.0)) if auto_d else
                            float(requested_d or 0.0)) if rail_enabled else 0.0
-                    cmd=(f"ARM_MOVE_TOOL FRAME=WORLD X={tx:.5f} Y={ty:.5f} "
-                         f"Z={tz:.5f} D={d:.5f}")
-                    _gcode(cmd,timeout=5)
+                        cmd=(f"ARM_MOVE_TOOL FRAME=WORLD X={tx:.5f} Y={ty:.5f} "
+                             f"Z={tz:.5f} D={d:.5f}")
+                        _gcode(cmd,timeout=5)
+                        route_note=""
                     state["message"]=(f"World move queued X={tx:.1f}, Y={ty:.1f}, "
                                       f"Z={tz:.1f}; D={d:.1f} mm"
+                                      + route_note
                                       if rail_enabled else
-                                      f"World move queued X={tx:.1f}, Y={ty:.1f}, Z={tz:.1f}; rail disabled")
+                                      f"World move queued X={tx:.1f}, Y={ty:.1f}, Z={tz:.1f}; rail disabled"
+                                      + route_note)
                 else:
                     self.send_error(404); return
                 state["busy"]=False; self.reply(state_payload())

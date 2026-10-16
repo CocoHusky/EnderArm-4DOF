@@ -1,5 +1,6 @@
 """Exercise production boundary checks without importing controller I/O."""
 import ast
+import heapq
 import math
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,11 +11,12 @@ import boundary_model
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def checks(poly):
-    ns = {'math': math, 'BOUNDARY_POLY': poly, 'BOUNDARY_YIELD': 5.0,
+def checks(poly, yield_mm=5.0):
+    ns = {'math': math, 'heapq': heapq, 'BOUNDARY_POLY': poly, 'BOUNDARY_YIELD': yield_mm,
           'state': {'home_x_counts': 3.5, 'home_y_counts': 3.5}}
     source = ast.parse((ROOT/'software/host/robot_mapper_klipper.py').read_text())
-    names = {'_point_in_poly', '_seg_dist', 'boundary_score', 'clip_xy_path'}
+    names = {'_point_in_poly', '_seg_dist', 'boundary_score', 'clip_xy_path',
+             '_joint_segment_is_safe', 'safe_joint_route'}
     for node in source.body:
         if isinstance(node, ast.FunctionDef) and node.name in names:
             exec(compile(ast.Module(body=[node], type_ignores=[]), '<host-boundary>', 'exec'), ns)
@@ -64,6 +66,20 @@ class BoundaryTests(unittest.TestCase):
     def test_unrelated_outside_pose_still_rejected(self):
         self.assertLess(self.host['boundary_score'](200, 60), 0)
         self.assertTrue(self.host['clip_xy_path'](172.13,80.44,200,60)[2])
+
+    def test_safe_corridor_routes_around_a_concave_boundary(self):
+        # Both endpoints lie in this L-shaped region, while the direct
+        # diagonal passes through its missing upper-right quadrant.
+        host = checks([(0,0),(8,0),(8,3),(3,3),(3,8),(0,8),(0,0)], yield_mm=0)
+        start=(1.0,7.0)
+        end=(7.0,1.0)
+        self.assertFalse(host['_joint_segment_is_safe'](start,end))
+        route=host['safe_joint_route'](start,end,grid_step=1.0)
+        self.assertGreater(len(route),2)
+        self.assertEqual(route[0],start)
+        self.assertEqual(route[-1],end)
+        for left,right in zip(route,route[1:]):
+            self.assertTrue(host['_joint_segment_is_safe'](left,right))
 
 
 if __name__ == '__main__':

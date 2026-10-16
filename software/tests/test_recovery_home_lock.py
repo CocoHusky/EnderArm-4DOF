@@ -14,7 +14,8 @@ def recovery_gate(state, sync, home):
     function = next(node for node in source.body
                     if isinstance(node, ast.FunctionDef)
                     and node.name == 'ensure_homed_for_motion')
-    namespace = {'state': state, '_sync_state_from_arm_robot': sync, 'precise_home': home}
+    namespace = {'state': state, '_sync_state_from_arm_robot': sync, 'precise_home': home,
+                 'SENSOR': None}
     exec(compile(ast.Module(body=[function], type_ignores=[]), '<recovery-gate>', 'exec'), namespace)
     return namespace['ensure_homed_for_motion']
 
@@ -69,6 +70,13 @@ def tilt_recovery_worker(state, queue_saved, commands=None):
 
 
 class RecoveryHomeLockTests(unittest.TestCase):
+    def test_latched_sensor_fault_blocks_normal_motion_even_if_homed(self):
+        state = {'homed': True, 'home_required': False}
+        gate = recovery_gate(state, lambda: None, lambda: None)
+        gate.__globals__['SENSOR'] = SimpleNamespace(guard=SimpleNamespace(fault='vibration'))
+        with self.assertRaisesRegex(RuntimeError, 'Sensor protection fault'):
+            gate()
+
     def test_home_does_not_launch_a_correction_worker(self):
         source = ast.parse((ROOT / 'software/host/robot_mapper_klipper.py').read_text())
         function = next(n for n in source.body if isinstance(n, ast.FunctionDef)

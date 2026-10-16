@@ -95,6 +95,10 @@ class SensorServiceTests(unittest.TestCase):
             self.assertIn('suspected skipping', calls[0])
             self.assertFalse(svc.swipe_enabled)
             self.assertFalse(svc.monitor.enabled)
+            other = self.make_service(td)
+            self.assertIsNotNone(other.guard.fault)
+            other.acknowledge_fault()
+            self.assertIsNone(self.make_service(td).guard.fault)
 
     def make_service(self, td, swipe=True):
         svc=SensorService(td+"/sensor_config.json","fake",swipe_feature=swipe)

@@ -1158,6 +1158,8 @@ def precise_home(clear_stop=True):
 
 def ensure_homed_for_motion():
     """Restore the physical reference before accepting a motion command."""
+    if SENSOR is not None and SENSOR.guard.fault:
+        raise RuntimeError("Sensor protection fault — recover controller and Home before normal motion")
     if state.get("correction_pending",False):
         raise RuntimeError("Tilt correction is in progress")
     _sync_state_from_arm_robot()

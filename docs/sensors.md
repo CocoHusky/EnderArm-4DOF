@@ -86,6 +86,12 @@ Successful correction clears its tilt fault after fresh readings confirm a
 normal pose. Successful Home also clears a normal tilt fault, including a
 previous KILL latch. A bad or stale reading stays faulted. Reset fault is
 available under Calibration & filter for manual troubleshooting.
+Successful Home with fresh normal feedback also clears/rearms the vibration,
+impact and Z guard. Ordinary motion is refused while a guard fault remains
+latched, even if the controller reports homed. Tilt correction alone does not
+clear a suspected-skipping fault.
+Guard faults also persist across app restarts; restarting the app does not
+bypass the motion block. Fault persistence happens after the KILL request.
 
 The live X/Y/Z graph receives every serial sample through a buffered stream.
 Firmware 0.4.0 targets a 10 ms acquisition interval, with compact acceleration

@@ -135,6 +135,9 @@ class SensorService:
             self.guard.configure(raw.get('guard', {}))
         except (TypeError, ValueError, AttributeError):
             pass
+        fault = raw.get('guard_fault')
+        if isinstance(fault, str) and fault:
+            self.guard.fault = fault[:300]
 
     def _save_config(self):
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
@@ -152,6 +155,7 @@ class SensorService:
             "enabled": self.monitor.enabled,
             "kill_enabled": self.monitor.kill_enabled,
             "guard": dict(self.guard.options),
+            "guard_fault": self.guard.fault,
         }
         tmp = self.config_path + ".tmp"
         with open(tmp, "w") as stream:
@@ -313,6 +317,12 @@ class SensorService:
                         self.on_kill(reason)
                     except Exception as exc:
                         self.countdown_error = 'KILL request failed: ' + str(exc)
+                # Never put disk I/O ahead of the emergency stop request.
+                try:
+                    with self._lock:
+                        self._save_config()
+                except OSError as exc:
+                    self.countdown_error = 'Fault persistence failed: ' + str(exc)
             triggered = self.monitor.update(accel_g if len(accel_g) == 3 else [0, 0, 1], healthy=healthy)
             if self._check_hard_tilt():
                 continue
@@ -417,6 +427,8 @@ class SensorService:
         self.hard_kill_latched = False
         self.monitor.acknowledge()
         self.guard.acknowledge()
+        with self._lock:
+            self._save_config()
         return self.snapshot()
 
     def clear_recovered_tilt(self, after_home=False):
@@ -431,6 +443,9 @@ class SensorService:
         with self._lock:
             self.monitor.acknowledge()
             self.hard_kill_latched = False
+            if after_home:
+                self.guard.acknowledge()
+                self._save_config()
             self.countdown_error = None
         return True
 

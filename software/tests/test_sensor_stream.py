@@ -75,3 +75,23 @@ class SensorStreamTests(unittest.TestCase):
             self.link['fresh'] = True
             self.assertTrue(service.clear_recovered_tilt(after_home=True))
             self.assertFalse(service.hard_kill_latched)
+
+    def test_successful_home_rearms_vibration_but_correction_does_not(self):
+        with tempfile.TemporaryDirectory() as td:
+            service = self.make_service(td)
+            service.guard.configure({'burst_stop': True})
+            def burst(start):
+                service.guard.update([0, 1, 0], now=start)
+                reasons = [service.guard.update([1.5*(-1)**n, 1, 0],
+                           now=start+.05*(n+1)) for n in range(3)]
+                return [r for r in reasons if r]
+            self.assertEqual(len(burst(0)), 1)
+            service.clear_recovered_tilt()
+            self.assertIsNotNone(service.guard.fault)
+            self.link['fresh'] = False
+            self.assertFalse(service.clear_recovered_tilt(after_home=True))
+            self.assertIsNotNone(service.guard.fault)
+            self.link['fresh'] = True
+            self.assertTrue(service.clear_recovered_tilt(after_home=True))
+            self.assertIsNone(service.guard.fault)
+            self.assertEqual(len(burst(1)), 1)
